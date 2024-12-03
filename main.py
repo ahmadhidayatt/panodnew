@@ -16,7 +16,7 @@ from urllib.parse import urlparse
 PING_INTERVAL = 0.5
 DOMAIN_API = {
     "SESSION": "http://api.nodepay.ai/api/auth/session",
-    "PING": ["http://18.142.29.174/api/network/ping", "https://nw.nodepay.org/api/network/ping"]
+    "PING": "https://nw.nodepay.org/api/network/ping"
 }
 CONNECTION_STATES = {
     "CONNECTED": 1,
