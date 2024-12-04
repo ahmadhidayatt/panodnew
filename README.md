@@ -53,7 +53,6 @@ pip install -r requirements.txt
 
 Dependencies include:
 - [asyncio](https://pypi.org/project/asyncio/)
-- [requests](https://pypi.org/project/requests/)
 - [curl-cffi](https://pypi.org/project/curl-cffi/)
 - [fake-useragent](https://pypi.org/project/fake-useragent/)
 - [loguru](https://loguru.readthedocs.io/)
