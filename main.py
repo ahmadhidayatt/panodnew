@@ -16,7 +16,8 @@ from urllib.parse import urlparse
 PING_INTERVAL = 0.5
 DOMAIN_API = {
     "SESSION": "http://api.nodepay.ai/api/auth/session",
-    "PING": ["http://18.142.29.174/api/network/ping", "https://nw.nodepay.org/api/network/ping"]
+    "PING": ["https://nw.nodepay.org/api/network/ping"],
+    "DEVICE_NETWORK": "https://api.nodepay.org/api/network/device-networks"
 }
 CONNECTION_STATES = {
     "CONNECTED": 1,
@@ -44,6 +45,8 @@ def print_header():
     
     print(border)
     print(colored_art)
+    print(colored("by Enukio", color="cyan", attrs=["bold"]))
+    print()
     print("Welcome to NodepayBot - Automate your tasks effortlessly!")
     print(border)
 
@@ -125,20 +128,31 @@ async def call_api(url, data, token, proxy=None):
     user_agent = UserAgent().chrome if UserAgent().chrome else "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 Safari/537.36"
     sec_ch_ua_version = user_agent.split("Chrome/")[-1].split(" ")[0]
     headers = {
+        # Authentication and Identity
         "Authorization": f"Bearer {token}",
         "User-Agent": user_agent,
+
+        # Content Settings
+        "Accept": "application/json, text/plain, */*",
         "Accept-Language": "en-US,en;q=0.9",
-        "Referer": "https://app.nodepay.ai/",
-        "Accept": "application/json",
         "Content-Type": "application/json",
+
+        # Request Origin Settings
+        "Referer": "https://app.nodepay.ai/",
         "Origin": "chrome-extension://lgmpfmgeabnnlemejacfljbmonaomfmm",
+
+        # Platform and Browser
         "Sec-Ch-Ua": f'"Chromium";v="{sec_ch_ua_version}", "Google Chrome";v="{sec_ch_ua_version}", "Not?A_Brand";v="99"',
         "Sec-Ch-Ua-Mobile": "?0",
         "Sec-Ch-Ua-Platform": '"Windows"',
+
+        # Security and Privacy Settings
         "sec-fetch-dest": "empty",
         "sec-fetch-mode": "cors",
         "sec-fetch-site": "cross-site",
         "DNT": "1",
+
+        # Connection Settings
         "Connection": "keep-alive",
         "Cache-Control": "no-cache",
     }
@@ -165,15 +179,21 @@ async def call_api(url, data, token, proxy=None):
             logger.error("Error during API call: JSON Decode Error")
         return None
 
-def get_ip_address():
-    try:
-        response = requests.get("https://api.ipify.org?format=json")
-        if response.status_code == 200:
-            return response.json().get("ip", "Unknown")
-        else:
+def get_ip_address(proxy=None):
+    if proxy:
+        try:
+            response = requests.get("https://api.ipify.org?format=json", proxies={"http": proxy, "https": proxy})
+            if response.status_code == 200:
+                return response.json().get("ip", "Unknown")
+        except requests.exceptions.RequestException:
             return "Unknown"
-    except requests.exceptions.RequestException:
-        return "Unknown"
+    else:
+        try:
+            response = requests.get("https://api.ipify.org?format=json")
+            if response.status_code == 200:
+                return response.json().get("ip", "Unknown")
+        except requests.exceptions.RequestException:
+            return "Unknown"
 
 def extract_proxy_ip(proxy_url):
     try:
@@ -186,6 +206,8 @@ def extract_proxy_ip(proxy_url):
 async def start_ping(token, account_info, proxy):
     browser_id = str(uuid.uuid4())
     url_index = 0
+    last_valid_points = 0
+
     while True:
         try:
             url = DOMAIN_API["PING"][url_index]
@@ -199,21 +221,30 @@ async def start_ping(token, account_info, proxy):
             if response:
                 response_data = response.get("data", {})
                 ip_score = response_data.get("ip_score", "Unavailable")
+                ip_address = get_ip_address()
+
+                total_points = await get_total_points(token, ip_score=ip_score, proxy=proxy)
+
+                if total_points == 0 and last_valid_points > 0:
+                    total_points = last_valid_points
+                else:
+                    last_valid_points = total_points
 
                 if proxy:
                     proxy_ip = extract_proxy_ip(proxy)
                     logger.info(
-                        f"<green>Ping Successful</green>, IP Score: <cyan>{ip_score}</cyan>, Proxy: <cyan>{proxy_ip}</cyan>"
+                        f"<green>Ping Successfully</green>, Network Quality: <cyan>{ip_score}</cyan>, "
+                        f"Proxy: <cyan>{proxy_ip}</cyan>, Total Points Earned: <cyan>{total_points:.2f}</cyan>"
                     )
                 else:
-                    ip_address = get_ip_address()
                     logger.info(
-                        f"<green>Ping Successful</green>, IP Score: <cyan>{ip_score}</cyan>, IP Address: <cyan>{ip_address}</cyan>"
+                        f"<green>Ping Successfully</green>, Network Quality: <cyan>{ip_score}</cyan>, "
+                        f"IP Address: <cyan>{ip_address}</cyan>, Total Points Earned: <cyan>{total_points:.2f}</cyan>"
                     )
             else:
                 logger.warning(f"<yellow>No response from {url}</yellow>")
         except Exception as e:
-            pass
+            logger.error(f"<red>Error in pinging: {e}</red>")
         finally:
             await asyncio.sleep(PING_INTERVAL)
             url_index = (url_index + 1) % len(DOMAIN_API["PING"])
@@ -233,8 +264,53 @@ def log_user_data(user_data):
     except Exception as e:
         logger.error(f"Failed to log user data: {e}")
 
+async def get_total_points(token, ip_score="Unknown", proxy=None):
+    try:
+        url = DOMAIN_API["DEVICE_NETWORK"]
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "User-Agent": "Mozilla/5.0 (Linux; Android 12; Samsung Galaxy S21 Build/SP1A.210812.016) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36",
+            "Accept": "application/json, text/plain, */*",
+            "Content-Type": "application/json",
+            "Host": "api.nodepay.org",
+            "Referer": "https://app.nodepay.ai/",
+        }
+        params = {"page": 0, "limit": 10, "active": "true"}
+        response = requests.get(url, headers=headers, params=params)
+
+        if response.status_code == 200:
+            data = response.json()
+            if data.get("success"):
+                devices = data.get("data", [])
+                total_points = sum(device.get("total_points", 0) for device in devices)
+                ip_address = get_ip_address()
+
+                if proxy:
+                    proxy_ip = extract_proxy_ip(proxy)
+                    logger.info(
+                        f"<magenta>Earn Successfully</magenta>, Network Quality: <cyan>{ip_score}</cyan>, "
+                        f"Proxy: <cyan>{proxy_ip}</cyan>, Total Points Earned: <cyan>{total_points:.2f}</cyan>"
+                    )
+                else:
+                    logger.info(
+                        f"<magenta>Earn Successfully</magenta>, Network Quality: <cyan>{ip_score}</cyan>, "
+                        f"IP Address: <cyan>{ip_address}</cyan>, Total Points Earned: <cyan>{total_points:.2f}</cyan>"
+                    )
+                return total_points
+            else:
+                if SHOW_REQUEST_ERROR_LOG:
+                    logger.error(f"Failed to fetch points for token: {data.get('msg')}")
+        else:
+            if SHOW_REQUEST_ERROR_LOG:
+                logger.error(f"Failed to fetch points for token: HTTP {response.status_code}")
+    except Exception as e:
+        if SHOW_REQUEST_ERROR_LOG:
+            logger.error(f"Error fetching total points for token: {e}")
+    return 0
+
 async def process_account(token, use_proxy, proxies=None):
     proxies = proxies or []
+    ip_score = "Unknown"
     for proxy in (proxies if use_proxy else [None]):
         try:
             logger.debug(f"Trying with proxy: {proxy}")
@@ -243,6 +319,8 @@ async def process_account(token, use_proxy, proxies=None):
                 account_info = response["data"]
 
                 log_user_data(account_info)
+
+                total_points = await get_total_points(token, ip_score=ip_score, proxy=proxy)
 
                 await start_ping(token, account_info, proxy)
                 return
