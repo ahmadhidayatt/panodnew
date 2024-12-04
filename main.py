@@ -16,7 +16,7 @@ from urllib.parse import urlparse
 PING_INTERVAL = 0.5
 DOMAIN_API = {
     "SESSION": "http://api.nodepay.ai/api/auth/session",
-    "PING": ["https://nw.nodepay.org/api/network/ping"]
+    "PING": ["http://18.142.29.174/api/network/ping", "https://nw.nodepay.org/api/network/ping"]
 }
 CONNECTION_STATES = {
     "CONNECTED": 1,
@@ -137,7 +137,7 @@ async def call_api(url, data, token, proxy=None):
         "Sec-Ch-Ua-Platform": '"Windows"',
         "sec-fetch-dest": "empty",
         "sec-fetch-mode": "cors",
-        "sec-fetch-site": "same-origin",
+        "sec-fetch-site": "cross-site",
         "DNT": "1",
         "Connection": "keep-alive",
         "Cache-Control": "no-cache",
