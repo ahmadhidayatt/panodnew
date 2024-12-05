@@ -82,7 +82,7 @@ python main.py
 3. Top up your balance, or you can directly buy a plan and pay with Crypto!
 4. Go to the Dashboard, select your ISP plan, and click "Generate Proxy."
 5. Set the proxy format to `protocol://username:password@hostname:port` and choose any number for the proxy count.
-6. Paste the proxies into `proxy.txt`.
+6. Paste the proxies into `proxies.txt`.
 
 ---
 
