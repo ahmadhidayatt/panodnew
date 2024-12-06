@@ -286,7 +286,7 @@ async def call_api(url, data, token, proxy=None, timeout=60):
             logger.error(f"<red>Connection Error during API call to {url}: {e}</red>")
         return None
     except requests.exceptions.RequestException as e:
-        if response.status_code == 403:
+        if response.status_code == :
             logger.error(f"<red>HTTP 403: Access denied during API call. Possible reasons: invalid token or blocked IP/proxy.</red>")
         if response.status_code == 429:
             retry_after = response.headers.get("Retry-After", "unknown")
@@ -467,7 +467,7 @@ async def get_total_points(token, ip_score="N/A", proxy=None, name="Unknown"):
         elif response.status_code == 403:
             logger.error(
                 f"<red>HTTP 403: Access denied.</red> "
-                f"Token or proxy may be blocked. Proxy: <cyan>{proxy or 'No Proxy'}</cyan>"
+                f"<red>Token or proxy may be blocked.</red> Proxy: <cyan>{proxy or 'No Proxy'}</cyan>"
             )
         else:
             logger.error(
