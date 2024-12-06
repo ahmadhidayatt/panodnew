@@ -47,32 +47,28 @@ def print_header():
     ascii_art = figlet_format("NodepayBot", font="slant")
     colored_art = colored(ascii_art, color="cyan")
     border = "=" * 40
-    
+
     print(border)
     print(colored_art)
     print(colored("by Enukio", color="cyan", attrs=["bold"]))
-    print()
-    print("Welcome to NodepayBot - Automate your tasks effortlessly!")
+    print("\nWelcome to NodepayBot - Automate your tasks effortlessly!")
     print(border)
 
-print_header()
+    try:
+        with open('tokens.txt', 'r') as file:
+            tokens_content = len(file.readlines())
+        with open('proxies.txt', 'r') as file:
+            proxy_count = len(file.readlines())
+    except FileNotFoundError as e:
+        print(f"Error: {e.filename} not found. Please ensure the file is available.")
+        tokens_content, proxy_count = 0, 0
+    except Exception as e:
+        print(f"An error occurred while reading files: {e}")
+        tokens_content, proxy_count = 0, 0
 
-def read_tokens_and_proxy():
-    with open('tokens.txt', 'r') as file:
-        tokens_content = sum(1 for line in file)
-
-    with open('proxies.txt', 'r') as file:
-        proxy_count = sum(1 for line in file)
-
-    return tokens_content, proxy_count
-
-tokens_content, proxy_count = read_tokens_and_proxy()
-
-print()
-print(f"Tokens: {tokens_content} - Loaded {proxy_count} proxies\n")
-print(f"Nodepay only supports 3 connections per account. Using too many proxies may cause issues.")
-print()
-print("=" * 40)
+    print(f"\nTokens: {tokens_content} - Loaded {proxy_count} proxies\n")
+    print("Nodepay only supports 3 connections per account. Using too many proxies may cause issues.\n")
+    print(border)
 
 # Proxy utility
 def ask_user_for_proxy():
@@ -547,6 +543,7 @@ async def main():
 
 if __name__ == '__main__':
     try:
+        print_header()
         generate_user_agents("tokens.txt", "user_agents.json")
         asyncio.run(main())
     except (KeyboardInterrupt, SystemExit):
