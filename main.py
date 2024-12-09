@@ -328,7 +328,7 @@ async def process_account(token, use_proxy, proxies=None, user_agents=None, ping
         account_info = await get_account_info(token, user_agents, proxy=proxy)
 
         if not account_info:
-            logger.error(f"<red>Failed to fetch account info for token {token[-10:]}</red>")
+            logger.error(f"<red>Account info not found for token: {token[-10:]}</red>")
             return
 
     for proxy in proxy_list:
