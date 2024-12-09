@@ -15,6 +15,7 @@ from pyfiglet import figlet_format
 from termcolor import colored
 
 
+# Global configuration
 SHOW_REQUEST_ERROR_LOG = False
 
 PING_INTERVAL = 60
@@ -39,6 +40,7 @@ last_ping_time = {}
 token_status = {}
 browser_id = None
 
+# Setup logger
 logger.remove()
 logger.add(
     sink=sys.stdout,
@@ -73,13 +75,14 @@ def print_file_info():
 def ask_user_for_proxy():
     while (user_input := input("Do you want to use proxy? (yes/no)? ").strip().lower()) not in ['yes', 'no']:
         print("Invalid input. Please enter 'yes' or 'no'.")
-    
+
     print(f"You selected: {'Yes' if user_input == 'yes' else 'No'}, ENJOY!\n")
-    
+
     if user_input == 'yes':
         proxies = load_proxies()
         if not proxies:
-            return None
+            logger.error("<red>No proxies found in 'proxies.txt'. Please add valid proxies.</red>")
+            return []
         return proxies
     else:
         return []
@@ -88,7 +91,7 @@ def load_user_agents():
     try:
         return json.loads(load_file("user_agents.json", split_lines=False))
     except json.JSONDecodeError:
-        logger.error("Error loading 'user_agents.json'. Ensure the file is valid.")
+        logger.error("<red>Error loading 'user_agents.json'. Ensure the file is valid.</red>")
         return []
 
 def load_file(filename, split_lines=True):
@@ -97,13 +100,15 @@ def load_file(filename, split_lines=True):
             content = file.read()
             return content.splitlines() if split_lines else content
     except FileNotFoundError:
-        logger.error(f"File '{filename}' not found. Please ensure it exists.")
+        logger.error(f"<red>File '{filename}' not found. Please ensure it exists.</red>")
         return []
 
 def load_proxies():
     return load_file('proxies.txt')
 
 def assign_proxies_to_tokens(tokens, proxies):
+    if proxies is None:
+        proxies = []
     paired = list(zip(tokens[:len(proxies)], proxies))
     remaining = [(token, None) for token in tokens[len(proxies):]]
     return paired + remaining
@@ -125,7 +130,7 @@ def get_ip_address(proxy=None):
 
 def log_user_data(users_data):
     if not users_data:
-        logger.error("No user data available.")
+        logger.error("<red>No user data available.</red>")
         return
 
     try:
@@ -163,6 +168,12 @@ def generate_user_agents(tokens_file, output_file):
         print(f"Error: {e}")
 
 def dailyclaim(token, user_agents):
+    tokens = load_file("tokens.txt")
+    if not tokens or token not in tokens:
+        return False
+
+    proxies = load_file("proxies.txt") if os.path.exists("proxies.txt") else []
+
     url = DOMAIN_API["DAILY_CLAIM"]
     user_agents = user_agents or load_user_agents()
     user_agent = next(
@@ -189,7 +200,7 @@ def dailyclaim(token, user_agents):
         if response.status_code != 200:
             logger.info(f"<yellow>Reward Already Claimed!</yellow>")
             return False
-    
+
         response_json = response.json()
         if response_json.get("success"):
             logger.info(f"<green>Claim Reward Success!</green>")
@@ -267,7 +278,7 @@ async def start_ping(token, account_info, proxy, ping_interval, user_agents=None
             last_ping_time[proxy] = current_time
 
         if not DOMAIN_API["PING"]:
-            logger.error("No PING URLs available in DOMAIN_API['PING'].")
+            logger.error("<red>No PING URLs available in DOMAIN_API['PING'].</red>")
             return
 
         url = DOMAIN_API["PING"][url_index]
@@ -398,11 +409,16 @@ async def create_tasks(token_proxy_pairs, user_agents):
 
 async def main():
     if not (user_agents := load_user_agents()):
-        return logger.error("No user agents loaded. Exiting.")
+        return logger.error("<red>No user agents loaded. Exiting.</red>")
     if not (tokens := load_file("tokens.txt")):
-        return logger.error("No tokens found in 'tokens.txt'. Exiting.")
+        return logger.error("<red>No tokens found in 'tokens.txt'. Exiting.</red>")
 
     proxies = ask_user_for_proxy()
+
+    if not proxies:
+        logger.info("<green>Proceeding without proxies...</green>")
+    else:
+        logger.info("<green>Proceeding with proxies...</green>")
 
     await process_tokens(tokens, user_agents)
     token_proxy_pairs = assign_proxies_to_tokens(tokens, proxies)
@@ -418,7 +434,7 @@ async def main():
 
     for result in results:
         if isinstance(result, Exception):
-            logger.error(f"Task failed: {result}")
+            logger.error(f"<red>Task failed: {result}</red>")
 
 if __name__ == '__main__':
     try:
