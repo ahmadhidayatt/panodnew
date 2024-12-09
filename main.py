@@ -417,7 +417,8 @@ async def main():
     results = await asyncio.gather(*tasks, return_exceptions=True)
 
     for result in results:
-        logger.error(f"Task failed: {result}") if isinstance(result, Exception) else logger.info(f"Task succeeded: {result}")
+        if isinstance(result, Exception):
+            logger.error(f"Task failed: {result}")
 
 if __name__ == '__main__':
     try:
