@@ -45,7 +45,7 @@ logger.remove()
 logger.add(
     sink=sys.stdout,
     format="<r>[Nodepay]</r> | <white>{time:YYYY-MM-DD HH:mm:ss}</white> | "
-           "<level>{level: <7}</level> | <cyan>{line: <3}</cyan> | {message}",
+           "<level>{level: ^7}</level> | <cyan>{line: <3}</cyan> | {message}",
     colorize=True
 )
 logger = logger.opt(colors=True)
@@ -213,6 +213,8 @@ def dailyclaim(token, user_agents):
         return False
 
 async def call_api(url, data, token, user_agents=None, proxy=None, timeout=60):
+    session = requests.Session()
+
     user_agents = user_agents or load_user_agents()
     user_agent = next(
         (ua["user_agent"] for ua in user_agents if ua["token"] == token),
@@ -237,13 +239,21 @@ async def call_api(url, data, token, user_agents=None, proxy=None, timeout=60):
         logger.error(f"Request error during API call to {url}: {e}") if SHOW_REQUEST_ERROR_LOG else None
         if response and response.status_code == 403:
             logger.error("<red>Access denied (HTTP 403). Possible invalid token or blocked IP/proxy.</red>")
+            time.sleep(random.uniform(5, 10))
+            return None
         elif response and response.status_code == 429:
             retry_after = response.headers.get("Retry-After", "unknown")
             logger.warning(f"<yellow>Rate limit hit (HTTP 429). Retry after {retry_after} seconds.</yellow>")
-        return None
+            time.sleep(int(retry_after) if retry_after != "unknown" else 5)
+        else:
+            logger.error(f"Request failed: {e}")
+
     except json.JSONDecodeError as e:
         logger.error(f"Failed to decode JSON response from {url}: {e}") if SHOW_REQUEST_ERROR_LOG else None
-        return None
+    except Exception as e:
+        logger.error(f"Unexpected error during API call: {e}") if SHOW_REQUEST_ERROR_LOG else None
+
+    return None
 
 async def get_account_info(token, user_agents, proxy=None):
     url = DOMAIN_API["SESSION"]
@@ -363,11 +373,22 @@ async def get_total_points(token, user_agents, ip_score="N/A", proxy=None, name=
     try:
         scraper = cloudscraper.create_scraper(browser={"browser": "chrome", "platform": "windows"})
         url = DOMAIN_API["DEVICE_NETWORK"]
-        user_agent = next(
-            (ua["user_agent"] for ua in user_agents if ua["token"] == token),
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 Safari/537.36"
-        )
-        headers = {"Authorization": f"Bearer {token}", "User-Agent": user_agent, "Accept": "application/json", "Content-Type": "application/json"}
+
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "Accept": "*/*",
+            "Accept-Encoding": "gzip, deflate, br, zstd",
+            "User-Agent": "Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36",
+            "Origin": "https://app.nodepay.ai",
+            "Referer": "https://app.nodepay.ai/",
+            "Sec-Fetch-Site": "cross-site",
+            "Sec-Fetch-Mode": "cors",
+            "Sec-Fetch-Dest": "empty",
+            "Sec-CH-UA": "\"Google Chrome\";v=\"131\", \"Chromium\";v=\"131\", \"Not_A Brand\";v=\"24\"",
+            "Sec-CH-UA-Mobile": "?1",
+            "Sec-CH-UA-Platform": "\"Android\""
+        }
+
         proxies = {"http": proxy, "https": proxy} if proxy else None
 
         response = scraper.get(url, headers=headers, proxies=proxies, timeout=60)
@@ -379,12 +400,12 @@ async def get_total_points(token, user_agents, ip_score="N/A", proxy=None, name=
                 logger.info(f"<magenta>Earn successfully</magenta>, Total Points: <cyan>{total_points:.2f}</cyan> for user: <magenta>{name}</magenta>")
                 return total_points
             logger.error(f"<red>Failed to fetch points: {data.get('msg', 'Unknown error')}</red>")
+
         elif response.status_code == 403:
             identifier = extract_proxy_ip(proxy) if proxy else get_ip_address()
             logger.error(f"<red>HTTP 403: Access denied. Proxy or token may be blocked.</red> "
                          f"{ 'Proxy' if proxy else 'IP Address' }: <cyan>{identifier}</cyan>")
-        else:
-            logger.error(f"<red>Unexpected HTTP {response.status_code} while fetching points.</red>")
+            time.sleep(random.uniform(5, 10))
 
     except (requests.exceptions.RequestException, json.JSONDecodeError) as e:
         identifier = extract_proxy_ip(proxy) if proxy else get_ip_address()
