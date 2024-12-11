@@ -87,13 +87,6 @@ def ask_user_for_proxy():
     else:
         return []
 
-def load_user_agents():
-    try:
-        return json.loads(load_file("user_agents.json", split_lines=False))
-    except json.JSONDecodeError:
-        logger.error("<red>Error loading 'user_agents.json'. Ensure the file is valid.</red>")
-        return []
-
 def load_file(filename, split_lines=True):
     try:
         with open(filename, 'r') as file:
@@ -145,29 +138,7 @@ def log_user_data(users_data):
         if SHOW_REQUEST_ERROR_LOG:
             logger.error(f"Logging error: {e}")
 
-def generate_user_agents(tokens_file, output_file):
-    if os.path.exists(output_file): return
-    
-    try:
-        tokens = open(tokens_file).read().splitlines()
-        
-        data = []
-        for t in tokens:
-            chrome_version = f"{random.randint(100, 120)}.0.{random.randint(4000, 5000)}.{random.randint(0, 100)}"
-            browser = random.choice(['Chrome', 'Mises', 'Kiwi', 'Herond'])
-            user_agent = f"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) " \
-                         f"Chrome/{chrome_version} Safari/537.36 {browser}/1.0"
-            data.append({"token": t, "user_agent": user_agent})
-
-        with open(output_file, "w") as json_file:
-            json.dump(data, json_file, indent=4)
-
-        print(f"{output_file} file created successfully")
-    
-    except Exception as e:
-        print(f"Error: {e}")
-
-def dailyclaim(token, user_agents):
+def dailyclaim(token):
     tokens = load_file("tokens.txt")
     if not tokens or token not in tokens:
         return False
@@ -175,14 +146,9 @@ def dailyclaim(token, user_agents):
     proxies = load_file("proxies.txt") if os.path.exists("proxies.txt") else []
 
     url = DOMAIN_API["DAILY_CLAIM"]
-    user_agents = user_agents or load_user_agents()
-    user_agent = next(
-        (ua["user_agent"] for ua in user_agents if ua["token"] == token),
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 Safari/537.36"
-    )
     headers = {
         "Authorization": f"Bearer {token}",
-        "User-Agent": user_agent,
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
         "Content-Type": "application/json",
         "Origin": "https://app.nodepay.ai",
         "Referer": "https://app.nodepay.ai/",
@@ -212,21 +178,20 @@ def dailyclaim(token, user_agents):
         logger.error(f"Request failed: {e}") if SHOW_REQUEST_ERROR_LOG else None
         return False
 
-async def call_api(url, data, token, user_agents=None, proxy=None, timeout=60):
-    session = requests.Session()
-
-    user_agents = user_agents or load_user_agents()
-    user_agent = next(
-        (ua["user_agent"] for ua in user_agents if ua["token"] == token),
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 Safari/537.36"
-    )
+async def call_api(url, data, token, proxy=None, timeout=60):
     headers = {
         "Authorization": f"Bearer {token}",
-        "User-Agent": user_agent,
-        "Content-Type": "application/json",
-        "Origin": "chrome-extension://lgmpfmgeabnnlemejacfljbmonaomfmm",
-        "Accept": "*/*",
-        "Accept-Language": "en-US,en;q=0.5",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
+            "Accept-Language": "en-US,en;q=0.9",
+            "Referer": "https://app.nodepay.ai/",
+            "Accept": "application/json, text/plain, */*",
+            "Origin": "chrome-extension://lgmpfmgeabnnlemejacfljbmonaomfmm",
+            "Sec-Ch-Ua": '"Chromium";v="130", "Google Chrome";v="130", "Not?A_Brand";v="99"',
+            "Sec-Ch-Ua-Mobile": "?0",
+            "Sec-Ch-Ua-Platform": '"Windows"',
+            "sec-fetch-dest": "empty",
+            "sec-fetch-mode": "cors",
+            "sec-fetch-site": "cors-site"
     }
 
     response = None
@@ -255,10 +220,10 @@ async def call_api(url, data, token, user_agents=None, proxy=None, timeout=60):
 
     return None
 
-async def get_account_info(token, user_agents, proxy=None):
+async def get_account_info(token, proxy=None):
     url = DOMAIN_API["SESSION"]
     try:
-        response = await call_api(url, {}, token, user_agents, proxy)
+        response = await call_api(url, {}, token, proxy)
         if response and response.get("code") == 0:
             data = response["data"]
             return {
@@ -270,10 +235,8 @@ async def get_account_info(token, user_agents, proxy=None):
         logger.error(f"<red>Error fetching account info for token {token[-10:]}: {e}</red>")
     return None
 
-async def start_ping(token, account_info, proxy, ping_interval, user_agents=None, browser_id=None):
+async def start_ping(token, account_info, proxy, ping_interval, browser_id=None):
     global last_ping_time, RETRIES, status_connect
-
-    user_agents = user_agents or load_user_agents()
     browser_id = browser_id or str(uuid.uuid4())
     url_index = 0
     last_valid_points = 0
@@ -301,13 +264,13 @@ async def start_ping(token, account_info, proxy, ping_interval, user_agents=None
         }
 
         try:
-            response = await call_api(url, data, token, user_agents=user_agents, proxy=proxy, timeout=120)
+            response = await call_api(url, data, token, proxy=proxy, timeout=120)
             if response and response.get("data"):
 
                 status_connect = CONNECTION_STATES["CONNECTED"]
                 response_data = response["data"]
                 ip_score = response_data.get("ip_score", "N/A")
-                total_points = await get_total_points(token, user_agents, ip_score=ip_score, proxy=proxy, name=name)
+                total_points = await get_total_points(token, ip_score=ip_score, proxy=proxy, name=name)
                 total_points = last_valid_points if total_points == 0 and last_valid_points > 0 else total_points
                 last_valid_points = total_points
 
@@ -337,7 +300,7 @@ async def start_ping(token, account_info, proxy, ping_interval, user_agents=None
 
         await asyncio.sleep(ping_interval)
 
-async def process_account(token, use_proxy, proxies=None, user_agents=None, ping_interval=2.0):
+async def process_account(token, use_proxy, proxies=None, ping_interval=2.0):
     proxies = proxies or []
     proxy_list = proxies if use_proxy else [None]
 
@@ -346,7 +309,7 @@ async def process_account(token, use_proxy, proxies=None, user_agents=None, ping
 
     account_info = None
     if not account_info:
-        account_info = await get_account_info(token, user_agents, proxy=proxy)
+        account_info = await get_account_info(token, proxy=proxy)
 
         if not account_info:
             logger.error(f"<red>Account info not found for token: {token[-10:]}</red>")
@@ -354,13 +317,13 @@ async def process_account(token, use_proxy, proxies=None, user_agents=None, ping
 
     for proxy in proxy_list:
         try:
-            response = await call_api(DOMAIN_API["SESSION"], {}, token, user_agents, proxy)
+            response = await call_api(DOMAIN_API["SESSION"], {}, token, proxy)
 
             if response and response.get("code") == 0:
                 account_info = response["data"]
                 log_user_data(account_info)
 
-                await start_ping(token, account_info, proxy, ping_interval, user_agents, browser_id)
+                await start_ping(token, account_info, proxy, ping_interval, browser_id)
                 return
 
             logger.warning(f"<yellow>Invalid or no response for token with proxy {proxy}</yellow>")
@@ -369,7 +332,7 @@ async def process_account(token, use_proxy, proxies=None, user_agents=None, ping
 
     logger.error(f"<red>All attempts failed for token {token[-10:]}</red>")
 
-async def get_total_points(token, user_agents, ip_score="N/A", proxy=None, name="Unknown"):
+async def get_total_points(token, ip_score="N/A", proxy=None, name="Unknown"):
     try:
         scraper = cloudscraper.create_scraper(browser={"browser": "chrome", "platform": "windows"})
         url = DOMAIN_API["DEVICE_NETWORK"]
@@ -416,21 +379,19 @@ async def get_total_points(token, user_agents, ip_score="N/A", proxy=None, name=
     
     return 0
 
-async def process_tokens(tokens, user_agents):
-    await asyncio.gather(*(asyncio.to_thread(dailyclaim, token, user_agents) for token in tokens))
+async def process_tokens(tokens):
+    await asyncio.gather(*(asyncio.to_thread(dailyclaim, token) for token in tokens))
 
-async def create_tasks(token_proxy_pairs, user_agents):
+async def create_tasks(token_proxy_pairs):
     return [
-        call_api(DOMAIN_API["SESSION"], data={}, token=token, user_agents=user_agents, proxy=proxy)
+        call_api(DOMAIN_API["SESSION"], data={}, token=token, proxy=proxy)
         for token, proxy in token_proxy_pairs
     ] + [
-        process_account(token, use_proxy=bool(proxy), proxies=[proxy] if proxy else [], ping_interval=4.0, user_agents=user_agents)
+        process_account(token, use_proxy=bool(proxy), proxies=[proxy] if proxy else [], ping_interval=4.0)
         for token, proxy in token_proxy_pairs
     ]
 
 async def main():
-    if not (user_agents := load_user_agents()):
-        return logger.error("<red>No user agents loaded. Exiting.</red>")
     if not (tokens := load_file("tokens.txt")):
         return logger.error("<red>No tokens found in 'tokens.txt'. Exiting.</red>")
 
@@ -441,16 +402,16 @@ async def main():
     else:
         logger.info("<green>Proceeding with proxies...</green>")
 
-    await process_tokens(tokens, user_agents)
+    await process_tokens(tokens)
     token_proxy_pairs = assign_proxies_to_tokens(tokens, proxies)
 
-    users_data = await asyncio.gather(*(get_account_info(token, user_agents) for token in tokens), return_exceptions=True)
+    users_data = await asyncio.gather(*(get_account_info(token) for token in tokens), return_exceptions=True)
     log_user_data([data for data in users_data if not isinstance(data, Exception)])
 
     logger.info("Waiting before starting tasks...")
     await asyncio.sleep(5)
 
-    tasks = await create_tasks(token_proxy_pairs, user_agents)
+    tasks = await create_tasks(token_proxy_pairs)
     results = await asyncio.gather(*tasks, return_exceptions=True)
 
     for result in results:
@@ -461,7 +422,6 @@ if __name__ == '__main__':
     try:
         print_header()
         print_file_info()
-        generate_user_agents("tokens.txt", "user_agents.json")
         asyncio.run(main())
     except KeyboardInterrupt:
         print("Program interrupted. Exiting gracefully...")
