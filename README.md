@@ -1,17 +1,42 @@
 
 # NodepayBot - Ping Utility
 
-NodepayBot is a Python-based tool designed to automate tasks for the Nodepay service, featuring token and proxy management, API interaction, and connection monitoring. This bot makes use of asynchronous programming for efficient operations and ensures a smooth automation experience.
-
----
+**Nodepay Bot** is an automation tool designed to simplify tasks for Nodepay users. It supports multiple accounts, proxy integration, and automates activities such as account activation, reward claiming, and periodic pings to keep sessions active.
 
 ## Features
 
-- **Automated API Interactions**: Handles session initialization, pings, and connection states.
-- **Proxy Support**: Enables using proxies for improved security and anonymity.
-- **Token Management**: Reads and utilizes tokens for authenticated interactions.
-- **Logging**: Real-time and colorful logs powered by `loguru` for better debugging and monitoring.
-- **Customizable Settings**: Adjustable ping intervals and retry limits.
+- **Multi-account Management**: Handle multiple accounts seamlessly.
+- **Proxy Support**: Map tokens to proxies for secure and distributed operations.
+- **Reward Automation**: Automatically claim rewards based on activity progress.
+- **Periodic Pinging**: Keep accounts active with regular server pings.
+- **Detailed Logging**: Get insights into actions and account states through a color-coded logging system.
+
+---
+
+## Prerequisites
+
+- **Python 3.8+**
+- Dependencies listed in `requirements.txt`:
+  - `aiohttp`
+  - `cloudscraper`
+  - `requests`
+  - `loguru`
+  - `colorama`
+
+## Installation
+**1. Clone the repository:**
+   ```bash
+   git clone https://github.com/Enukio/NodepayBot.git
+   ```
+   ```bash
+   cd NodepayBot
+   ```
+**2. Install dependencies:**
+   ```bash
+   pip install -r requirements.txt
+   ```
+**3. Prepare your environment:**
+   - Set up `tokens.txt` and `proxies.txt` (instructions below).
 
 ---
 
@@ -29,52 +54,60 @@ Retrieving `np_token`: A quick guide to find your `np_token`:
 - The value displayed is your `np_token`.
 - Save `np_token` to `tokens.txt`
 
----
+## Setting up `tokens.txt`
 
-## Setup
-**Clone this repository:**
-   ```bash
-   git clone https://github.com/Enukio/NodepayBot.git
+The `tokens.txt` file stores the tokens for your accounts. Each line represents a single token. You can configure it in two ways depending on your requirements:
+
+1. **One Token per Account**  
+   If you are managing different accounts, list each token on a separate line:
    ```
-   ```bash
-   cd NodepayBot
+   token1
+   token2
+   token3
    ```
-   
----
 
-## Requirements
+2. **Reusing the Same Token for Multiple Accounts**  
+   If you want to use the same token across multiple accounts (e.g., for testing or scaling purposes):
+   ```
+   token1
+   token1
+   token1
+   ```
 
-Ensure you have Python 3.8 or newer installed.
-
-Install the required dependencies:
-```bash
-pip install -r requirements.txt
-```
-
-Dependencies include:
-- [cloudscraper](https://pypi.org/project/cloudscraper/)
-- [curl-cffi](https://pypi.org/project/curl-cffi/)
-- [fake-useragent](https://pypi.org/project/fake-useragent/)
-- [loguru](https://loguru.readthedocs.io/)
-- [pyfiglet](https://pypi.org/project/pyfiglet/)
-- [requests](https://pypi.org/project/requests/)
-- [termcolor](https://pypi.org/project/termcolor/)
+> **Note:** Ensure that the tokens correspond to valid and active accounts in the system.
 
 ---
+
+## Setting up `proxies.txt`
+
+The `proxies.txt` file is optional and allows you to use proxies for account operations. Each line represents one proxy. Follow these steps:
+
+1. Create a file named `proxies.txt` in the root directory of the project.
+2. Add your proxies, one per line, in the format:
+
+   ```
+   protocol://username:password@hostname:port
+   ```
+   Example:
+   ```
+   http://user1:pass1@proxy1.example.com:8080
+   http://user2:pass2@proxy2.example.com:8080
+   http://user3:pass2@proxy3.example.com:8080
+   ```
+4. Ensure the proxies are functional and correspond to your desired network configuration.
 
 ## Usage
-1. **Prepare Configuration Files:**
-   - **`tokens.txt`:** A list of tokens for API authentication. One token per line.
-   - **`proxies.txt` (optional):** A list of proxies in the format `protocol://user:pass@host:port`. One per line.
 
-2. **Run the Script:**
-```bash
-python main.py
-```
+1. Run the bot:
+   ```bash
+   python main.py
+   ```
 
-### Optional:
-- Choose whether to use proxies when prompted.
-- View real-time logs in the terminal, including ping successes, failures, and connection states.
+2. Follow the prompts to:
+   - Use or skip proxies.
+   - View logs for each account's activities.
+
+---
 
 ## Need Proxy?
 1. Sign up at [Proxies.fo](https://app.proxies.fo/ref/d02516e7-56b3-9a1f-b7ca-1fb08669f7a6).
@@ -86,43 +119,12 @@ python main.py
 
 ---
 
-## Configuration
-
-You can adjust the following parameters in the `main.py` file:
-
-- `PING_INTERVAL`: Interval between pings (in seconds).
-- `RETRIES_LIMIT`: Maximum retry attempts before declaring a failure.
-- API endpoints are specified in the `DOMAIN_API_ENDPOINTS` dictionary.
-
----
-## Fix Termux Error
-- Copy [libcurl-impersonate-chrome.so.4](https://github.com/Enukio/NodepayBot/raw/refs/heads/main/libcurl-impersonate-chrome.so.4) To Folder /data/data/com.termux/files/usr/lib
-- Example Command On Termux :
-```bash
-cp libcurl-impersonate-chrome.so.4 /data/data/com.termux/files/usr/lib
-```
-Make Sure Allowed Permission Storage On Setting Termux
-- Install Python 3.10
-```bash
-pkg update && upgrade
-pkg install tur-repo
-pkg install python-is-python3.10
-```
-- Install Requirements
-```bash
-pip install --upgrade pip
-pkg install -y rust binutils
-CARGO_BUILD_TARGET="$(rustc -Vv | grep "host" | awk '{print $2}')" pip install maturin
-pip install asyncio
-pip install requests
-pip install curl-cffi
-pip install fake-useragent
-pip install loguru
-pip install pyfiglet
-pip install termcolor
-```
----
-
 ## License
 
 This project is licensed under the [MIT License](LICENSE).
+
+---
+
+### Support My Channel
+
+[![Static Badge](https://img.shields.io/badge/Telegram-Channel-Link?style=for-the-badge&logo=Telegram&logoColor=white&logoSize=auto&color=blue)]([https://t.me/airdrop_tool_vanh](https://t.me/AirdropHarvest))
