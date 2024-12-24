@@ -1,0 +1,150 @@
+import asyncio
+import cloudscraper
+import json
+import random
+import requests
+
+from urllib.parse import urlparse
+from utils.settings import DOMAIN_API, logger, Fore
+
+
+# Create a Cloudscraper instance
+scraper = cloudscraper.create_scraper(
+    browser={
+        'browser': 'chrome',
+        'platform': 'windows',
+        'desktop': True
+    }
+)
+
+# Function to dynamically build HTTP headers based on URL, account, and method
+async def build_headers(url, account, method="POST", data=None):
+    """
+    Build headers for API requests dynamically.
+    """
+    headers = {
+        "Authorization": f"Bearer {account.token}",
+        "Content-Type": "application/json",
+    }
+
+    # Add endpoint-specific headers
+    endpoint_specific_headers = get_endpoint_headers(url)
+    headers.update(endpoint_specific_headers)
+
+    # Add Content-Length for POST/PUT requests with data
+    if method in ["POST", "PUT"] and data:
+        try:
+            json_data = json.dumps(data)
+            headers["Content-Length"] = str(len(json_data))
+
+        except (TypeError, ValueError) as e:
+            logger.error(f"{Fore.RED}Failed to calculate Content-Length:{Fore.RESET} {e}")
+            raise ValueError("Invalid data format for calculating Content-Length.")
+
+    return headers
+
+# Function to return endpoint-specific headers based on the API
+def get_endpoint_headers(url):
+    """
+    Return endpoint-specific headers based on the API.
+    """
+    EARN_MISSION_SET = {DOMAIN_API["EARN_INFO"], DOMAIN_API["MISSION"], DOMAIN_API["COMPLETE_MISSION"]}
+    PING_LIST = DOMAIN_API["PING"]
+    ACTIVATE_URL = DOMAIN_API["ACTIVATE"]
+
+    if url in EARN_MISSION_SET:
+        return {
+            "User-Agent": "1.2.6+12 (Android 13; Galaxy S23 Ultra; SM-G998B; Smartphone)",
+            "Accept-Encoding": "gzip, deflate, br, zstd",
+            "Host": "api.nodepay.ai"
+        }
+
+    elif url in PING_LIST or url == ACTIVATE_URL:
+        return {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+            "Accept": "application/json, text/plain, */*",
+            "Referer": "https://app.nodepay.ai/",
+            "Origin": "chrome-extension://lgmpfmgeabnnlemejacfljbmonaomfmm"
+        }
+
+    return {}
+
+# Function to send HTTP requests with error handling and custom headers
+async def send_request(url, data, account, method="POST"):
+    """
+    Perform HTTP requests with proper headers and error handling.
+    """
+    headers = await build_headers(url, account, method, data)
+    proxies = {"http": account.proxy, "https": account.proxy} if account.proxy else None
+
+    parsed_url = urlparse(url)
+    path = parsed_url.path
+
+    try:
+        if method == "GET":
+            response = scraper.get(url, headers=headers, proxies=proxies, timeout=60)
+        else:
+            response = scraper.post(url, json=data, headers=headers, proxies=proxies, timeout=60)
+
+        response.raise_for_status()
+        return response.json()
+
+    except requests.exceptions.RequestException as e:
+        error_message = str(e).split(":")[0]
+        logger.error(
+            f"{Fore.CYAN}{account.index:02d}{Fore.RESET} - {Fore.RED}HTTP error on{Fore.RESET} "
+            f"{Fore.CYAN}{path}:{Fore.RESET} {error_message}"
+        )
+        raise
+
+    except Exception as e:
+        error_message = str(e).split(":")[0]
+        logger.error(
+            f"{Fore.CYAN}{account.index:02d}{Fore.RESET} - {Fore.RED}Unexpected error on{Fore.RESET} "
+            f"{Fore.CYAN}{path}:{Fore.RESET} {error_message}"
+        )
+        raise
+
+# Function to send HTTP requests with retry logic using exponential backoff
+async def retry_request(url, data, account, method="POST", max_retries=3):
+    """
+    Retry requests using exponential backoff.
+    """
+    retry_count = 0
+    parsed_url = urlparse(url)
+    path = parsed_url.path
+
+    while retry_count < max_retries:
+        try:
+            return await send_request(url, data, account, method)
+
+        except ValueError as e:
+            error_message = str(e)
+            logger.error(
+                f"{Fore.CYAN}{account.index:02d}{Fore.RESET} - {Fore.YELLOW}Retrying after invalid value:{Fore.RESET} {error_message}"
+            )
+
+        except requests.exceptions.Timeout:
+            logger.warning(
+                f"{Fore.CYAN}{account.index:02d}{Fore.RESET} - {Fore.YELLOW}Timeout encountered. Retrying...{Fore.RESET}"
+            )
+
+        except Exception as e:
+            error_message = str(e).split(":")[0]
+            logger.error(
+                f"{Fore.CYAN}{account.index:02d}{Fore.RESET} - {Fore.RED}Unexpected error during retry:{Fore.RESET} {error_message}"
+            )
+
+        await exponential_backoff(retry_count)
+        retry_count += 1
+
+    raise Exception(f"{Fore.RED}Max retries reached for{Fore.RESET} {Fore.CYAN}{path}{Fore.RESET}")
+
+# Function to implement exponential backoff delay during retries
+async def exponential_backoff(retry_count, base_delay=1):
+    """
+    Perform exponential backoff for retries.
+    """
+    delay = base_delay * (2 ** retry_count) + random.uniform(0, 1)
+    logger.info(f"{Fore.CYAN}00{Fore.RESET} - Retrying after {delay:.2f} seconds...")
+    await asyncio.sleep(delay)
