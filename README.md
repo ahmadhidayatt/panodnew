@@ -122,7 +122,7 @@ Set the following environment variables in a `.env` file:
 |--------------------|---------------|------------------------------------------------------|
 | `ACTIVATE_ACCOUNTS`| `True`        | Enables or disables account activation feature.      |
 | `DAILY_CLAIM`      | `True`        | Enables or disables the daily claim feature.         |
-| `PING_INTERVAL`    | `15`          | Time (in seconds) between pings to the server.       |
+| `PING_INTERVAL`    | `20`          | Time (in seconds) between pings to the server.       |
 | `PING_DURATION`    | `1800`        | Total duration (in seconds) for periodic pinging.    |
 | `DEBUG`            | `False`       | Enables or disables debug mode.                      |
 
