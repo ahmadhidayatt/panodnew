@@ -1,7 +1,7 @@
-cloudscraper
-curl-cffi
-fake_useragent
-loguru
-pyfiglet
-requests
-termcolor
+aiohttp==3.8.5
+asyncio==3.4.3
+cloudscraper==1.2.71
+colorama==0.4.6
+loguru==0.7.0
+python-dotenv==1.0.1
+requests==2.31.0
