@@ -18,10 +18,12 @@
 - **Python 3.8+**
 - Dependencies listed in `requirements.txt`:
   - `aiohttp`
+  - `asyncio`
   - `cloudscraper`
-  - `requests`
-  - `loguru`
   - `colorama`
+  - `loguru`
+  - `python-dotenv`
+  - `requests`
 
 ## Installation
 **1. Clone the repository:**
