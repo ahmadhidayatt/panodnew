@@ -5,11 +5,13 @@
 
 ## Features
 
-- **Multi-account Management**: Handle multiple accounts seamlessly.
-- **Proxy Support**: Map tokens to proxies for secure and distributed operations.
-- **Reward Automation**: Automatically claim rewards based on activity progress.
-- **Periodic Pinging**: Keep accounts active with regular server pings.
-- **Detailed Logging**: Get insights into actions and account states through a color-coded logging system.
+| Feature               | Description                                                             |
+|-----------------------|-------------------------------------------------------------------------|
+| **Multi-Account Management** | Seamlessly manage multiple accounts for efficient automation.       |
+| **Proxy Integration**        | Enhance security and scalability by mapping accounts to proxies.   |
+| **Automated Rewards**        | Automatically claim rewards based on activity progress to save time.|
+| **Session Maintenance**      | Keep accounts active with periodic server pings.                  |
+| **Insightful Logging**       | Gain visibility into account activities with a color-coded logging system.|
 
 ---
 
@@ -115,18 +117,13 @@ The `proxies.txt` file is optional and allows you to use proxies for account ope
 
 Set the following environment variables in a `.env` file:
 
-```env
-# Feature toggles
-ACTIVATE_ACCOUNTS=True    # Enable/disable account activation feature (True/False)
-DAILY_CLAIM=True          # Enable/disable daily claim feature (True/False)
-
-# App constants
-PING_INTERVAL=15          # Time (in seconds) between pings to the server
-PING_DURATION=1800        # Total duration (in seconds) for periodic pinging
-
-# Debugging
-DEBUG=False               # Enable/disable debug mode (True/False)
-```
+| Variable           | Default Value | Description                                          |
+|--------------------|---------------|------------------------------------------------------|
+| `ACTIVATE_ACCOUNTS`| `True`        | Enables or disables account activation feature.      |
+| `DAILY_CLAIM`      | `True`        | Enables or disables the daily claim feature.         |
+| `PING_INTERVAL`    | `15`          | Time (in seconds) between pings to the server.       |
+| `PING_DURATION`    | `1800`        | Total duration (in seconds) for periodic pinging.    |
+| `DEBUG`            | `False`       | Enables or disables debug mode.                      |
 
 ---
 
