@@ -101,19 +101,24 @@ async def send_request(url, data, account, method="POST", timeout=120):
         response.raise_for_status()
         return response.json()
 
+    except requests.exceptions.ProxyError as e:
+        error_message = "Unable to connect to proxy" if "Unable to connect to proxy" in str(e) else str(e).split(":")[0]
+        logger.error(
+            f"{Fore.CYAN}{account.index:02d}{Fore.RESET} - {Fore.RED}Proxy connection failed:{Fore.RESET} {error_message}"
+        )
+        raise
+
     except requests.exceptions.RequestException as e:
-        error_message = str(e).split(":")[0]
         logger.debug(
             f"{Fore.CYAN}{account.index:02d}{Fore.RESET} - {Fore.RED}HTTP error on{Fore.RESET} "
-            f"{Fore.CYAN}{path}:{Fore.RESET} {error_message}"
+            f"{Fore.CYAN}{path}:{Fore.RESET} {e}"
         )
         raise
 
     except Exception as e:
-        error_message = str(e).split(":")[0]
         logger.error(
             f"{Fore.CYAN}{account.index:02d}{Fore.RESET} - {Fore.RED}Unexpected error on{Fore.RESET} "
-            f"{Fore.CYAN}{path}:{Fore.RESET} {error_message}"
+            f"{Fore.CYAN}{path}:{Fore.RESET} {e}"
         )
         raise
 
@@ -149,9 +154,8 @@ async def retry_request(url, data, account, method="POST", max_retries=3):
             )
 
         except Exception as e:
-            error_message = str(e).split(":")[0]
-            logger.error(
-                f"{Fore.CYAN}{account.index:02d}{Fore.RESET} - {Fore.RED}Unexpected error during retry:{Fore.RESET} {error_message}"
+            logger.debug(
+                f"{Fore.CYAN}{account.index:02d}{Fore.RESET} - {Fore.RED}Unexpected error during retry:{Fore.RESET} {e}"
             )
 
         await exponential_backoff(retry_count)
