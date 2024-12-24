@@ -111,6 +111,25 @@ The `proxies.txt` file is optional and allows you to use proxies for account ope
 
 ---
 
+## Configuration
+
+Set the following environment variables in a `.env` file:
+
+```env
+# Feature toggles
+ACTIVATE_ACCOUNTS=True    # Enable/disable account activation feature (True/False)
+DAILY_CLAIM=True          # Enable/disable daily claim feature (True/False)
+
+# App constants
+PING_INTERVAL=15          # Time (in seconds) between pings to the server
+PING_DURATION=1800        # Total duration (in seconds) for periodic pinging
+
+# Debugging
+DEBUG=False               # Enable/disable debug mode (True/False)
+```
+
+---
+
 ## Need Proxy?
 1. Sign up at [Proxies.fo](https://app.proxies.fo/ref/d02516e7-56b3-9a1f-b7ca-1fb08669f7a6).
 2. Go to [Plans](https://app.proxies.fo/plans) and only purchase the "ISP plan" (Residential plans don’t work).
