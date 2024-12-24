@@ -5,6 +5,7 @@ import random
 import requests
 
 from urllib.parse import urlparse
+from fake_useragent import UserAgent
 from utils.settings import DOMAIN_API, logger, Fore
 
 
@@ -17,14 +18,24 @@ scraper = cloudscraper.create_scraper(
     }
 )
 
+# Generates a random User-Agent string
+def get_random_user_agent():
+    """
+    Return a random User-Agent string.
+    """
+    ua = UserAgent()
+    return ua.random
+
 # Function to dynamically build HTTP headers based on URL, account, and method
 async def build_headers(url, account, method="POST", data=None):
     """
     Build headers for API requests dynamically.
     """
+    # Start with base headers
     headers = {
         "Authorization": f"Bearer {account.token}",
         "Content-Type": "application/json",
+        "User-Agent": get_random_user_agent(),
     }
 
     # Add endpoint-specific headers
@@ -36,10 +47,11 @@ async def build_headers(url, account, method="POST", data=None):
         try:
             json_data = json.dumps(data)
             headers["Content-Length"] = str(len(json_data))
-
         except (TypeError, ValueError) as e:
             logger.error(f"{Fore.RED}Failed to calculate Content-Length:{Fore.RESET} {e}")
             raise ValueError("Invalid data format for calculating Content-Length.")
+
+    logger.debug(f"{Fore.CYAN}{account.index:02d}{Fore.RESET} - {Fore.CYAN}Using User-Agent:{Fore.RESET} {headers['User-Agent']}")
 
     return headers
 
@@ -54,23 +66,23 @@ def get_endpoint_headers(url):
 
     if url in EARN_MISSION_SET:
         return {
-            "User-Agent": "1.2.6+12 (Android 13; Galaxy S23 Ultra; SM-G998B; Smartphone)",
             "Accept-Encoding": "gzip, deflate, br, zstd",
             "Host": "api.nodepay.ai"
         }
 
     elif url in PING_LIST or url == ACTIVATE_URL:
         return {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
             "Accept": "application/json, text/plain, */*",
+            "Accept-Language": "en-US,en;q=0.9",
             "Referer": "https://app.nodepay.ai/",
-            "Origin": "chrome-extension://lgmpfmgeabnnlemejacfljbmonaomfmm"
+            "Origin": "chrome-extension://lgmpfmgeabnnlemejacfljbmonaomfmm",
+            "Sec-CH-UA": '"Not/A)Brand";v="8", "Chromium";v="126", "Herond";v="126"'
         }
 
     return {}
 
 # Function to send HTTP requests with error handling and custom headers
-async def send_request(url, data, account, method="POST"):
+async def send_request(url, data, account, method="POST", timeout=120):
     """
     Perform HTTP requests with proper headers and error handling.
     """
@@ -82,16 +94,16 @@ async def send_request(url, data, account, method="POST"):
 
     try:
         if method == "GET":
-            response = scraper.get(url, headers=headers, proxies=proxies, timeout=60)
+            response = scraper.get(url, headers=headers, proxies=proxies, timeout=timeout)
         else:
-            response = scraper.post(url, json=data, headers=headers, proxies=proxies, timeout=60)
+            response = scraper.post(url, json=data, headers=headers, proxies=proxies, timeout=timeout)
 
         response.raise_for_status()
         return response.json()
 
     except requests.exceptions.RequestException as e:
         error_message = str(e).split(":")[0]
-        logger.error(
+        logger.debug(
             f"{Fore.CYAN}{account.index:02d}{Fore.RESET} - {Fore.RED}HTTP error on{Fore.RESET} "
             f"{Fore.CYAN}{path}:{Fore.RESET} {error_message}"
         )
@@ -118,6 +130,13 @@ async def retry_request(url, data, account, method="POST", max_retries=3):
         try:
             return await send_request(url, data, account, method)
 
+        except requests.exceptions.HTTPError as e:
+            if e.response.status_code == 403:
+                logger.error(f"{Fore.CYAN}{account.index:02d}{Fore.RESET} - {Fore.RED}403 Forbidden: Check token or permissions for{Fore.RESET} {Fore.CYAN}{path}{Fore.RESET}")
+                break
+
+            logger.error(f"{Fore.RED}HTTP error encountered:{Fore.RESET} {e}")
+        
         except ValueError as e:
             error_message = str(e)
             logger.error(

@@ -23,6 +23,7 @@
   - `asyncio`
   - `cloudscraper`
   - `colorama`
+  - `fake-useragent`
   - `loguru`
   - `python-dotenv`
   - `requests`
