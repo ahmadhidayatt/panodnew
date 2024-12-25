@@ -83,6 +83,8 @@ def get_endpoint_headers(url):
             "Sec-Fetch-Mode": "cors",
             "Sec-Fetch-Site": "cors-site",
             "Upgrade-Insecure-Requests": "1",
+            "Pragma": "no-cache",
+            "Cache-Control": "no-cache",
             "Connection": "keep-alive"
         }
 
