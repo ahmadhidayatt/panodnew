@@ -7,21 +7,6 @@ from utils.services import retry_request, mask_token, resolve_ip
 from utils.settings import DOMAIN_API, PING_DURATION, PING_INTERVAL, logger, Fore
 
 
-# This function fetches account information from the server
-async def fetch_account_info(account):
-    logger.debug(f"{Fore.CYAN}{account.index:02d}{Fore.RESET} - Fetching account info...")
-    try:
-        response = await retry_request(DOMAIN_API["SESSION"], {}, account, method="POST")
-
-        if response and response.get("success"):
-            return response.get("data")
-        logger.error(f"{Fore.CYAN}{account.index:02d}{Fore.RESET} - {Fore.RED}Failed to fetch account info:{Fore.RESET} {response}")
-
-    except Exception as e:
-        logger.error(f"{Fore.CYAN}{account.index:02d}{Fore.RESET} - {Fore.RED}Error fetching account info:{Fore.RESET} {e}")
-
-    return {}
-
 # Send periodic pings to the server for the given account
 async def process_ping_response(response, url, account, data):
     if not response or not isinstance(response, dict):
@@ -74,15 +59,6 @@ async def start_ping(account):
     if account.index == 1:
         logger.debug(separator_line)
 
-    # Ensure account.account_info is not empty
-    if not account.account_info or not account.account_info.get("uid"):
-        logger.debug(f"{Fore.CYAN}{account.index:02d}{Fore.RESET} - Account info is empty or missing UID. Attempting to fetch...")
-        account.account_info = await fetch_account_info(account)
-
-        if not account.account_info or not account.account_info.get("uid"):
-            logger.error(f"{Fore.CYAN}{account.index:02d}{Fore.RESET} - {Fore.RED}Failed to fetch valid account info. Skipping this account.{Fore.RESET}")
-            return
-
     try:
         # Validate browser_ids
         if not account.browser_ids or not isinstance(account.browser_ids[0], dict) or 'last_ping_time' not in account.browser_ids[0]:
@@ -104,7 +80,6 @@ async def start_ping(account):
         # Start ping loop
         for url in DOMAIN_API["PING"]:
             try:
-                logger.debug(f"{Fore.CYAN}{account.index:02d}{Fore.RESET} - Account info {{uid: {account.account_info.get('uid')}, name: {account.account_info.get('name')}}}")
                 data = {"id": account.account_info.get("uid"), "browser_id": account.browser_ids[0], "timestamp": int(time.time())}
 
                 # Send request with retry handling
