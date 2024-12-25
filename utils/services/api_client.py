@@ -76,7 +76,14 @@ def get_endpoint_headers(url):
             "Accept-Language": "en-US,en;q=0.9",
             "Referer": "https://app.nodepay.ai/",
             "Origin": "chrome-extension://lgmpfmgeabnnlemejacfljbmonaomfmm",
-            "Sec-CH-UA": '"Not/A)Brand";v="8", "Chromium";v="126", "Herond";v="126"'
+            "Sec-CH-UA": '"Not/A)Brand";v="8", "Chromium";v="126", "Herond";v="126"',
+            "Sec-CH-UA-Mobile": "?0",
+            "Sec-CH-UA-Platform": "Windows",
+            "Sec-Fetch-Dest": "empty",
+            "Sec-Fetch-Mode": "cors",
+            "Sec-Fetch-Site": "cors-site",
+            "Upgrade-Insecure-Requests": "1",
+            "Connection": "keep-alive"
         }
 
     return {}
