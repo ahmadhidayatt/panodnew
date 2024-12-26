@@ -27,7 +27,7 @@ def get_random_user_agent():
     return ua.random
 
 # Function to dynamically build HTTP headers based on URL, account, and method
-async def build_headers(url, account, method="POST", data=None):
+async def build_headers(url, account, method="POST", data=None, impersonate=None):
     """
     Build headers for API requests dynamically.
     """
@@ -35,7 +35,11 @@ async def build_headers(url, account, method="POST", data=None):
     headers = {
         "Authorization": f"Bearer {account.token}",
         "Content-Type": "application/json",
-        "User-Agent": get_random_user_agent(),
+        "User-Agent": (
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.5 Safari/605.1.15"
+            if impersonate == "safari15_5"
+            else get_random_user_agent()
+        ),
     }
 
     # Add endpoint-specific headers
@@ -51,8 +55,8 @@ async def build_headers(url, account, method="POST", data=None):
             logger.error(f"{Fore.RED}Failed to calculate Content-Length:{Fore.RESET} {e}")
             raise ValueError("Invalid data format for calculating Content-Length.")
 
-    logger.debug(f"{Fore.CYAN}{account.index:02d}{Fore.RESET} - {Fore.CYAN}Using User-Agent:{Fore.RESET} {headers['User-Agent']}")
-
+    # DEBUG: Log headers
+    logger.debug(f"{Fore.GREEN}Headers built:{Fore.RESET} {headers}")
     return headers
 
 # Function to return endpoint-specific headers based on the API
@@ -88,14 +92,15 @@ def get_endpoint_headers(url):
             "Connection": "keep-alive"
         }
 
-    return {}
+    # Default minimal headers
+    return {"Accept": "application/json"}
 
 # Function to send HTTP requests with error handling and custom headers
 async def send_request(url, data, account, method="POST", timeout=120):
     """
     Perform HTTP requests with proper headers and error handling.
     """
-    headers = await build_headers(url, account, method, data)
+    headers = await build_headers(url, account, method="POST", data=data, impersonate="safari15_5")
     proxies = {"http": account.proxy, "https": account.proxy} if account.proxy else None
 
     parsed_url = urlparse(url)
@@ -119,14 +124,7 @@ async def send_request(url, data, account, method="POST", timeout=120):
 
     except requests.exceptions.RequestException as e:
         logger.debug(
-            f"{Fore.CYAN}{account.index:02d}{Fore.RESET} - {Fore.RED}HTTP error on{Fore.RESET} "
-            f"{Fore.CYAN}{path}:{Fore.RESET} {e}"
-        )
-        raise
-
-    except Exception as e:
-        logger.error(
-            f"{Fore.CYAN}{account.index:02d}{Fore.RESET} - {Fore.RED}Unexpected error on{Fore.RESET} "
+            f"{Fore.CYAN}{account.index:02d}{Fore.RESET} - {Fore.RED}Request error:{Fore.RESET} "
             f"{Fore.CYAN}{path}:{Fore.RESET} {e}"
         )
         raise
@@ -146,21 +144,8 @@ async def retry_request(url, data, account, method="POST", max_retries=3):
 
         except requests.exceptions.HTTPError as e:
             if e.response.status_code == 403:
-                logger.error(f"{Fore.CYAN}{account.index:02d}{Fore.RESET} - {Fore.RED}403 Forbidden: Check token or permissions for{Fore.RESET} {Fore.CYAN}{path}{Fore.RESET}")
+                logger.error(f"{Fore.CYAN}{account.index:02d}{Fore.RESET} - {Fore.RED}403 Forbidden. Retrying...{Fore.RESET}")
                 break
-
-            logger.error(f"{Fore.RED}HTTP error encountered:{Fore.RESET} {e}")
-        
-        except ValueError as e:
-            error_message = str(e)
-            logger.error(
-                f"{Fore.CYAN}{account.index:02d}{Fore.RESET} - {Fore.YELLOW}Retrying after invalid value:{Fore.RESET} {error_message}"
-            )
-
-        except requests.exceptions.Timeout:
-            logger.warning(
-                f"{Fore.CYAN}{account.index:02d}{Fore.RESET} - {Fore.YELLOW}Timeout encountered. Retrying...{Fore.RESET}"
-            )
 
         except Exception as e:
             logger.debug(
