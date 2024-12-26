@@ -1,46 +1,39 @@
 import asyncio
-import cloudscraper
 import json
 import random
 import requests
 
+from curl_cffi import requests
 from urllib.parse import urlparse
-from fake_useragent import UserAgent
 from utils.settings import DOMAIN_API, logger, Fore
 
 
-# Generates a random User-Agent string
-def get_random_user_agent():
-    """
-    Return a random User-Agent string.
-    """
-    ua = UserAgent()
-    return ua.random
-
-# Function to dynamically build HTTP headers based on URL, account, and method
+# Function to build HTTP headers dynamically with hardcoded User-Agent
 async def build_headers(url, account, method="POST", data=None):
     """
-    Build headers for API requests dynamically.
+    Build headers for API requests dynamically with fixed User-Agent.
     """
     # Start with base headers
     headers = {
         "Authorization": f"Bearer {account.token}",
         "Content-Type": "application/json",
-        "User-Agent": get_random_user_agent(),
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
     }
 
     # Add endpoint-specific headers
     endpoint_specific_headers = get_endpoint_headers(url)
     headers.update(endpoint_specific_headers)
 
-    # Add Content-Length for POST/PUT requests with data
+    # Validate and serialize payload
     if method in ["POST", "PUT"] and data:
+        if not isinstance(data, dict):
+            logger.error(f"{Fore.CYAN}{account.index:02d}{Fore.RESET} - {Fore.RED}Invalid payload type: {type(data)}. Expected dict.{Fore.RESET}")
+            raise ValueError("Payload must be a dictionary.")
         try:
-            json_data = json.dumps(data)
-            headers["Content-Length"] = str(len(json_data))
-        except (TypeError, ValueError) as e:
-            logger.error(f"{Fore.RED}Failed to calculate Content-Length:{Fore.RESET} {e}")
-            raise ValueError("Invalid data format for calculating Content-Length.")
+            json_data = json.dumps(data, ensure_ascii=False).encode('utf-8')
+        except ValueError as e:
+            logger.error(f"{Fore.CYAN}{account.index:02d}{Fore.RESET} - {Fore.RED}Failed to serialize payload:{Fore.RESET} {e}")
+            raise
 
     # DEBUG: Log headers
     logger.debug(f"{Fore.CYAN}{account.index:02d}{Fore.RESET} - {Fore.GREEN}Headers built:{Fore.RESET} {headers}")
@@ -85,16 +78,8 @@ def get_endpoint_headers(url):
 # Function to send HTTP requests with error handling and custom headers
 async def send_request(url, data, account, method="POST", timeout=120):
     """
-    Perform HTTP requests with proper headers and error handling.
+    Perform HTTP requests with proper headers and error handling using curl_cffi.
     """
-    scraper = cloudscraper.create_scraper(
-        browser={
-            'browser': 'chrome',
-            'platform': 'windows',
-            'desktop': True
-        }
-    )
-
     headers = await build_headers(url, account, method, data)
     proxies = {"http": account.proxy, "https": account.proxy} if account.proxy else None
 
@@ -103,9 +88,9 @@ async def send_request(url, data, account, method="POST", timeout=120):
 
     try:
         if method == "GET":
-            response = scraper.get(url, headers=headers, proxies=proxies, timeout=timeout)
+            response = requests.get(url, headers=headers, proxies=proxies, impersonate="chrome120", timeout=timeout)
         else:
-            response = scraper.post(url, json=data, headers=headers, proxies=proxies, timeout=timeout)
+            response = requests.post(url, json=data, headers=headers, impersonate="chrome120", proxies=proxies, timeout=timeout)
 
         response.raise_for_status()
 
@@ -117,16 +102,11 @@ async def send_request(url, data, account, method="POST", timeout=120):
 
     except requests.exceptions.ProxyError as e:
         error_message = "Unable to connect to proxy" if "Unable to connect to proxy" in str(e) else str(e).split(":")[0]
-        logger.error(
-            f"{Fore.CYAN}{account.index:02d}{Fore.RESET} - {Fore.RED}Proxy connection failed:{Fore.RESET} {error_message}"
-        )
+        logger.error(f"{Fore.CYAN}{account.index:02d}{Fore.RESET} - {Fore.RED}Proxy connection failed:{Fore.RESET} {error_message}")
         raise
 
     except requests.exceptions.RequestException as e:
-        logger.debug(
-            f"{Fore.CYAN}{account.index:02d}{Fore.RESET} - {Fore.RED}Request error:{Fore.RESET} "
-            f"{Fore.CYAN}{path}:{Fore.RESET} {e}"
-        )
+        logger.debug(f"{Fore.CYAN}{account.index:02d}{Fore.RESET} - {Fore.RED}Request error:{Fore.RESET} {Fore.CYAN}{path}:{Fore.RESET} {e}")
         raise
 
 # Function to send HTTP requests with retry logic using exponential backoff
@@ -143,13 +123,13 @@ async def retry_request(url, data, account, method="POST", max_retries=3):
             return await send_request(url, data, account, method)
 
         except requests.exceptions.HTTPError as e:
-            if e.response.status_code == 403:
+            if hasattr(e, 'response') and e.response and e.response.status_code == 403:
                 logger.error(f"{Fore.CYAN}{account.index:02d}{Fore.RESET} - {Fore.RED}403 Forbidden: Check permissions or refresh proxy.{Fore.RESET}")
+            else:
+                logger.error(f"{Fore.CYAN}{account.index:02d}{Fore.RESET} - {Fore.RED}HTTPError during retry:{Fore.RESET} {e}")
 
         except Exception as e:
-            logger.debug(
-                f"{Fore.CYAN}{account.index:02d}{Fore.RESET} - {Fore.RED}Unexpected error during retry:{Fore.RESET} {e}"
-            )
+            logger.error(f"{Fore.CYAN}{account.index:02d}{Fore.RESET} - {Fore.RED}Request exception during retry:{Fore.RESET} {e}")
 
         await exponential_backoff(retry_count)
         retry_count += 1
