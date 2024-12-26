@@ -9,15 +9,6 @@ from fake_useragent import UserAgent
 from utils.settings import DOMAIN_API, logger, Fore
 
 
-# Create a Cloudscraper instance
-scraper = cloudscraper.create_scraper(
-    browser={
-        'browser': 'chrome',
-        'platform': 'windows',
-        'desktop': True
-    }
-)
-
 # Generates a random User-Agent string
 def get_random_user_agent():
     """
@@ -27,7 +18,7 @@ def get_random_user_agent():
     return ua.random
 
 # Function to dynamically build HTTP headers based on URL, account, and method
-async def build_headers(url, account, method="POST", data=None, impersonate=None):
+async def build_headers(url, account, method="POST", data=None):
     """
     Build headers for API requests dynamically.
     """
@@ -35,11 +26,7 @@ async def build_headers(url, account, method="POST", data=None, impersonate=None
     headers = {
         "Authorization": f"Bearer {account.token}",
         "Content-Type": "application/json",
-        "User-Agent": (
-            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.5 Safari/605.1.15"
-            if impersonate == "safari15_5"
-            else get_random_user_agent()
-        ),
+        "User-Agent": get_random_user_agent(),
     }
 
     # Add endpoint-specific headers
@@ -56,7 +43,7 @@ async def build_headers(url, account, method="POST", data=None, impersonate=None
             raise ValueError("Invalid data format for calculating Content-Length.")
 
     # DEBUG: Log headers
-    logger.debug(f"{Fore.GREEN}Headers built:{Fore.RESET} {headers}")
+    logger.debug(f"{Fore.CYAN}{account.index:02d}{Fore.RESET} - {Fore.GREEN}Headers built:{Fore.RESET} {headers}")
     return headers
 
 # Function to return endpoint-specific headers based on the API
@@ -100,7 +87,15 @@ async def send_request(url, data, account, method="POST", timeout=120):
     """
     Perform HTTP requests with proper headers and error handling.
     """
-    headers = await build_headers(url, account, method="POST", data=data, impersonate="safari15_5")
+    scraper = cloudscraper.create_scraper(
+        browser={
+            'browser': 'chrome',
+            'platform': 'windows',
+            'desktop': True
+        }
+    )
+
+    headers = await build_headers(url, account, method, data)
     proxies = {"http": account.proxy, "https": account.proxy} if account.proxy else None
 
     parsed_url = urlparse(url)
@@ -113,7 +108,12 @@ async def send_request(url, data, account, method="POST", timeout=120):
             response = scraper.post(url, json=data, headers=headers, proxies=proxies, timeout=timeout)
 
         response.raise_for_status()
-        return response.json()
+
+        try:
+            return response.json()
+        except ValueError as e:
+            logger.error(f"{Fore.CYAN}{account.index:02d}{Fore.RESET} - {Fore.RED}Failed to decode JSON response:{Fore.RESET} {e}")
+            raise
 
     except requests.exceptions.ProxyError as e:
         error_message = "Unable to connect to proxy" if "Unable to connect to proxy" in str(e) else str(e).split(":")[0]
@@ -144,8 +144,7 @@ async def retry_request(url, data, account, method="POST", max_retries=3):
 
         except requests.exceptions.HTTPError as e:
             if e.response.status_code == 403:
-                logger.error(f"{Fore.CYAN}{account.index:02d}{Fore.RESET} - {Fore.RED}403 Forbidden. Retrying...{Fore.RESET}")
-                break
+                logger.error(f"{Fore.CYAN}{account.index:02d}{Fore.RESET} - {Fore.RED}403 Forbidden: Check permissions or refresh proxy.{Fore.RESET}")
 
         except Exception as e:
             logger.debug(
