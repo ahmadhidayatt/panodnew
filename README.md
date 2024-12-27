@@ -28,21 +28,58 @@
   - `requests`
 
 ## Installation
-**1. Clone the repository:**
+**Clone the repository:**
    ```bash
    git clone https://github.com/Enukio/NodepayBot.git
    ```
    ```bash
    cd NodepayBot
    ```
-**2. Install dependencies:**
-   ```bash
-   pip install -r requirements.txt
-   ```
-**3. Prepare your environment:**
-   - Set up `tokens.txt` and `proxies.txt` (instructions below).
+
+Then you can do automatic installation by typing:
+
+Windows:
+```shell
+run.bat
+```
+
+Linux:
+```shell
+run.sh
+```
+
+# Windows manual installation
+```shell
+python -m venv venv
+venv\Scripts\activate
+pip install -r requirements.txt
+copy .env-example .env
+python main.py
+```
+
+# Linux manual installation
+```shell
+python3 -m venv venv
+source venv/bin/activate
+pip3 install -r requirements.txt
+cp .env-example .env
+python3 main.py
+```
+
+# Termux manual installation
+```
+> pkg update && pkg upgrade -y
+> pkg install python nodejs rust git -y
+> git clone https://github.com/Enukio/NodepayBot.git
+> cd NodepayBot
+> pip install -r requirements.txt
+> python main.py
+```
 
 ---
+
+## Prepare your environment
+   - Set up `tokens.txt` and `proxies.txt` (instructions below).
 
 ## Get NP_TOKEN
 Retrieving `np_token`: A quick guide to find your `np_token`:
@@ -100,17 +137,6 @@ The `proxies.txt` file is optional and allows you to use proxies for account ope
    ```
 4. Ensure the proxies are functional and correspond to your desired network configuration.
 
-## Usage
-
-1. Run the bot:
-   ```bash
-   python main.py
-   ```
-
-2. Follow the prompts to:
-   - Use or skip proxies.
-   - View logs for each account's activities.
-
 ---
 
 ## Configuration
@@ -119,9 +145,9 @@ Set the following environment variables in a `.env` file:
 
 | Variable           | Default Value | Description                                          |
 |--------------------|---------------|------------------------------------------------------|
-| `ACTIVATE_ACCOUNTS`| `True`        | Enables or disables account activation feature.      |
+| `ACTIVATE_ACCOUNTS`| `False`       | Enables or disables account activation feature.      |
 | `DAILY_CLAIM`      | `True`        | Enables or disables the daily claim feature.         |
-| `PING_INTERVAL`    | `20`          | Time (in seconds) between pings to the server.       |
+| `PING_INTERVAL`    | `60`          | Time (in seconds) between pings to the server.       |
 | `PING_DURATION`    | `1800`        | Total duration (in seconds) for periodic pinging.    |
 | `DEBUG`            | `False`       | Enables or disables debug mode.                      |
 
