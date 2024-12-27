@@ -1,10 +1,10 @@
 import asyncio
 import time
-from urllib.parse import urlparse
 
 from colorama import Style
+from urllib.parse import urlparse
 
-from utils.services import retry_request, mask_token, resolve_ip
+from utils.services import retry_request, mask_token, resolve_ip, clean_error
 from utils.settings import DOMAIN_API, PING_DURATION, PING_INTERVAL, logger, Fore
 
 
@@ -56,7 +56,8 @@ async def process_ping_response(response, url, account, data):
         return ping_result, network_quality
 
     except (AttributeError, KeyError, TypeError) as e:
-        logger.error(f"{Fore.CYAN}{account.index:02d}{Fore.RESET} - {Fore.RED}Error processing response:{Fore.RESET} {e}")
+        short_error = clean_error(e)
+        logger.error(f"{Fore.CYAN}{account.index:02d}{Fore.RESET} - {Fore.RED}Error processing response:{Fore.RESET} {short_error}")
         return "failed", None
 
 # Function to start the ping process for each account
@@ -124,7 +125,8 @@ async def start_ping(account):
                 logger.error(f"{Fore.CYAN}{account.index:02d}{Fore.RESET} - {Fore.RED}KeyError during ping:{Fore.RESET} {ke}")
 
             except Exception as e:
-                logger.error(f"{Fore.CYAN}{account.index:02d}{Fore.RESET} - {Fore.RED}Unexpected error:{Fore.RESET} {e}")
+                short_error = clean_error(e)
+                logger.error(f"{Fore.CYAN}{account.index:02d}{Fore.RESET} - {Fore.RED}Unexpected error:{Fore.RESET} {short_error}")
                 await asyncio.sleep(1)
 
     except Exception as main_exception:
@@ -148,7 +150,8 @@ async def ping_all_accounts(accounts):
                     logger.error(f"{Fore.CYAN}{account.index:02d}{Fore.RESET} - {Fore.RED}Error pinging account:{Fore.RESET} {result}")
 
         except Exception as e:
-            logger.error(f"{Fore.CYAN}{account.index:02d}{Fore.RESET} - {Fore.RED}Unexpected error:{Fore.RESET} {e}")
+            short_error = clean_error(e)
+            logger.error(f"{Fore.CYAN}{account.index:02d}{Fore.RESET} - {Fore.RED}Unexpected error:{Fore.RESET} {short_error}")
 
         logger.info(f"{Fore.CYAN}00{Fore.RESET} - Sleeping for {PING_INTERVAL} seconds before the next round")
         await asyncio.sleep(PING_INTERVAL)
