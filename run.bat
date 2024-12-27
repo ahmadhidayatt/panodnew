@@ -39,6 +39,14 @@ if not exist venv\Lib\site-packages\installed (
     echo Dependencies already installed, skipping installation.
 )
 
+:: Check if .env file exists, if not copy from .env-example
+if not exist .env (
+	echo Copying configuration file
+	copy .env-example .env
+) else (
+	echo Skipping .env copying
+)
+
 :: Start and restart the bot in a loop
 :loop
 echo Starting the bot...
