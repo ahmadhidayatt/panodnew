@@ -17,7 +17,7 @@ async def build_headers(url, account, method="POST", data=None):
     headers = {
         "Authorization": f"Bearer {account.token}",
         "Content-Type": "application/json",
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
     }
 
     # Add endpoint-specific headers
@@ -60,10 +60,7 @@ def get_endpoint_headers(url):
             "Accept-Language": "en-US,en;q=0.9",
             "Referer": "https://app.nodepay.ai/",
             "Origin": "chrome-extension://lgmpfmgeabnnlemejacfljbmonaomfmm",
-            "Sec-CH-UA": '"Not/A)Brand";v="8", "Chromium";v="126", "Herond";v="126"',
             "priority": "u=1, i",
-            "Sec-CH-UA-Mobile": "?0",
-            "Sec-CH-UA-Platform": "Windows",
             "Sec-Fetch-Dest": "empty",
             "Sec-Fetch-Mode": "cors",
             "Sec-Fetch-Site": "cors-site",
@@ -78,13 +75,18 @@ def get_endpoint_headers(url):
 # Function to send HTTP requests with error handling and custom headers
 async def send_request(url, data, account, method="POST", timeout=120):
     """
-    Perform HTTP requests with proper headers and error handling using curl_cffi.
+    Perform HTTP requests with proper headers and error handling.
     """
     headers = await build_headers(url, account, method, data)
     proxies = {"http": account.proxy, "https": account.proxy} if account.proxy else None
 
     parsed_url = urlparse(url)
     path = parsed_url.path
+
+    # Ensure headers are valid
+    if not headers:
+        logger.error(f"{Fore.CYAN}{account.index:02d}{Fore.RESET} - {Fore.RED}No headers generated for URL: {path}{Fore.RESET}")
+        raise ValueError("Failed to generate headers")
 
     try:
         if method == "GET":
@@ -97,15 +99,15 @@ async def send_request(url, data, account, method="POST", timeout=120):
         try:
             return response.json()
         except ValueError as e:
-            logger.error(f"{Fore.CYAN}{account.index:02d}{Fore.RESET} - {Fore.RED}Failed to decode JSON response:{Fore.RESET} {e}")
+            logger.error(f"{Fore.CYAN}{account.index:02d}{Fore.RESET} - {Fore.RED}Failed to decode JSON response:{Fore.RESET} {response.text}")
             raise
 
-    except requests.exceptions.ProxyError as e:
+    except requests.exceptions.ProxyError:
         logger.error(f"{Fore.CYAN}{account.index:02d}{Fore.RESET} - {Fore.RED}Proxy connection failed. Unable to connect to proxy{Fore.RESET}")
         raise
 
     except requests.exceptions.RequestException as e:
-        logger.debug(f"{Fore.CYAN}{account.index:02d}{Fore.RESET} - {Fore.RED}Request error:{Fore.RESET} {Fore.CYAN}{path}:{Fore.RESET} {e}")
+        logger.error(f"{Fore.CYAN}{account.index:02d}{Fore.RESET} - {Fore.RED}Request error:{Fore.RESET} {Fore.CYAN}{path}:{Fore.RESET} {e}")
         raise
 
 # Function to send HTTP requests with retry logic using exponential backoff
@@ -122,10 +124,13 @@ async def retry_request(url, data, account, method="POST", max_retries=3):
             return await send_request(url, data, account, method)
 
         except requests.exceptions.HTTPError as e:
-                logger.error(f"{Fore.CYAN}{account.index:02d}{Fore.RESET} - {Fore.RED}403 Forbidden: Check permissions or refresh proxy.{Fore.RESET}")
+            status_code = e.response.status_code if e.response else "Unknown"
+            logger.error(f"{Fore.CYAN}{account.index:02d}{Fore.RESET} - {Fore.RED}HTTP Error {status_code}:{Fore.RESET} {e}")
+            if status_code == 403:
+                logger.error(f"{Fore.CYAN}{account.index:02d}{Fore.RESET} - {Fore.RED}Forbidden: Check permissions or proxy.{Fore.RESET}")
 
         except Exception as e:
-            logger.error(f"{Fore.CYAN}{account.index:02d}{Fore.RESET} - {Fore.RED}Retry exception:{Fore.RESET} {e}")
+            logger.error(f"{Fore.CYAN}{account.index:02d}{Fore.RESET} - {Fore.RED}Retry exception at retry {retry_count}:{Fore.RESET} {e}")
 
         await exponential_backoff(retry_count)
         retry_count += 1
