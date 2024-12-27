@@ -32,7 +32,8 @@ async def build_headers(url, account, method="POST", data=None):
         try:
             json_data = json.dumps(data, ensure_ascii=False).encode('utf-8')
         except ValueError as e:
-            logger.error(f"{Fore.CYAN}{account.index:02d}{Fore.RESET} - {Fore.RED}Failed to serialize payload:{Fore.RESET} {e}")
+            short_error = clean_error(e)
+            logger.error(f"{Fore.CYAN}{account.index:02d}{Fore.RESET} - {Fore.RED}Failed to serialize payload:{Fore.RESET} {short_error}")
             raise
 
     # DEBUG: Log headers
@@ -107,7 +108,8 @@ async def send_request(url, data, account, method="POST", timeout=120):
         raise
 
     except requests.exceptions.RequestException as e:
-        logger.error(f"{Fore.CYAN}{account.index:02d}{Fore.RESET} - {Fore.RED}Request error:{Fore.RESET} {Fore.CYAN}{path}:{Fore.RESET} {e}")
+        short_error = clean_error(e)
+        logger.error(f"{Fore.CYAN}{account.index:02d}{Fore.RESET} - {Fore.RED}Request error:{Fore.RESET} {Fore.CYAN}{path}:{Fore.RESET} {short_error}")
         raise
 
 # Function to send HTTP requests with retry logic using exponential backoff
@@ -124,13 +126,15 @@ async def retry_request(url, data, account, method="POST", max_retries=3):
             return await send_request(url, data, account, method)
 
         except requests.exceptions.HTTPError as e:
+            short_error = clean_error(e)
             status_code = e.response.status_code if e.response else "Unknown"
-            logger.error(f"{Fore.CYAN}{account.index:02d}{Fore.RESET} - {Fore.RED}HTTP Error {status_code}:{Fore.RESET} {e}")
+            logger.error(f"{Fore.CYAN}{account.index:02d}{Fore.RESET} - {Fore.RED}HTTP Error {status_code}:{Fore.RESET} {short_error}")
             if status_code == 403:
                 logger.error(f"{Fore.CYAN}{account.index:02d}{Fore.RESET} - {Fore.RED}Forbidden: Check permissions or proxy.{Fore.RESET}")
 
         except Exception as e:
-            logger.error(f"{Fore.CYAN}{account.index:02d}{Fore.RESET} - {Fore.RED}Retry exception at retry {retry_count}:{Fore.RESET} {e}")
+            short_error = clean_error(e)
+            logger.error(f"{Fore.CYAN}{account.index:02d}{Fore.RESET} - {Fore.RED}Retry {retry_count}:{Fore.RESET} {short_error}")
 
         await exponential_backoff(retry_count)
         retry_count += 1
@@ -145,3 +149,11 @@ async def exponential_backoff(retry_count, base_delay=1):
     delay = base_delay * (2 ** retry_count) + random.uniform(0, 1)
     logger.info(f"{Fore.CYAN}00{Fore.RESET} - Retrying after {delay:.2f} seconds...")
     await asyncio.sleep(delay)
+
+def clean_error(error):
+    """
+    Format error message to remove unnecessary details.
+    """
+    error_message = str(error)
+    short_error = error_message.split(" See")[0]
+    return short_error
