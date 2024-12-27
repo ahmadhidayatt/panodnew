@@ -9,7 +9,7 @@ ACTIVATE_ACCOUNTS = os.getenv('ACTIVATE_ACCOUNTS', 'True') == 'True'
 DAILY_CLAIM = os.getenv('DAILY_CLAIM', 'True') == 'True'
 
 # App constants
-PING_INTERVAL = int(os.getenv('PING_INTERVAL', 15))
+PING_INTERVAL = int(os.getenv('PING_INTERVAL', 60))
 PING_DURATION = int(os.getenv('PING_DURATION', 1800))
 
 # Debugging
