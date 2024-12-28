@@ -4,7 +4,7 @@ import time
 from colorama import Style
 from urllib.parse import urlparse
 
-from utils.services import retry_request, mask_token, resolve_ip, clean_error
+from utils.services import retry_request, mask_token, resolve_ip
 from utils.settings import DOMAIN_API, PING_DURATION, PING_INTERVAL, logger, Fore
 
 
@@ -56,7 +56,7 @@ async def process_ping_response(response, url, account, data):
         return ping_result, network_quality
 
     except (AttributeError, KeyError, TypeError) as e:
-        short_error = clean_error(e)
+        short_error = str(e).split(" See")[0]
         logger.error(f"{Fore.CYAN}{account.index:02d}{Fore.RESET} - {Fore.RED}Error processing response:{Fore.RESET} {short_error}")
         return "failed", None
 
@@ -69,68 +69,64 @@ async def start_ping(account):
     if account.index == 1:
         logger.debug(separator_line)
 
-    try:
-        # Validate browser_ids
-        if not account.browser_ids or not isinstance(account.browser_ids[0], dict):
-            logger.error(f"{Fore.CYAN}{account.index:02d}{Fore.RESET} - {Fore.RED}Invalid or missing browser_ids structure.{Fore.RESET}")
-            return
+    # Validate browser_ids
+    if not account.browser_ids or not isinstance(account.browser_ids[0], dict):
+        logger.error(f"{Fore.CYAN}{account.index:02d}{Fore.RESET} - {Fore.RED}Invalid or missing browser_ids structure.{Fore.RESET}")
+        return
 
-        account.browser_ids[0].setdefault('ping_count', 0)
-        account.browser_ids[0].setdefault('score', 0)
+    account.browser_ids[0].setdefault('ping_count', 0)
+    account.browser_ids[0].setdefault('score', 0)
 
-        last_ping_time = account.browser_ids[0].get('last_ping_time', 0)
-        logger.debug(f"{Fore.CYAN}{account.index:02d}{Fore.RESET} - Current time: {current_time}, Last ping time: {last_ping_time}")
+    last_ping_time = account.browser_ids[0].get('last_ping_time', 0)
+    logger.debug(f"{Fore.CYAN}{account.index:02d}{Fore.RESET} - Current time: {current_time}, Last ping time: {last_ping_time}")
 
-        if last_ping_time and (current_time - last_ping_time) < PING_INTERVAL:
-            logger.warning(f"{Fore.CYAN}{account.index:02d}{Fore.RESET} - {Fore.YELLOW}Hold on! Please wait a bit longer before trying again.{Fore.RESET}")
-            return
+    if last_ping_time and (current_time - last_ping_time) < PING_INTERVAL:
+        logger.warning(f"{Fore.CYAN}{account.index:02d}{Fore.RESET} - {Fore.YELLOW}Hold on! Please wait a bit longer before trying again.{Fore.RESET}")
+        return
 
-        account.browser_ids[0]['last_ping_time'] = current_time
+    account.browser_ids[0]['last_ping_time'] = current_time
 
-        # Start ping loop
-        for url in DOMAIN_API.get("PING", []):
-            try:
-                parsed_url = urlparse(url)
-                path = parsed_url.path
-                logger.debug(f"{Fore.CYAN}{account.index:02d}{Fore.RESET} - Sending ping to {path}")
-                data = {
-                    "id": account.account_info.get("uid"),
-                    "browser_id": account.browser_ids[0],
-                    "timestamp": int(time.time()),
-                }
+    # Start ping loop
+    for url in DOMAIN_API.get("PING", []):
+        try:
+            parsed_url = urlparse(url)
+            path = parsed_url.path
+            logger.debug(f"{Fore.CYAN}{account.index:02d}{Fore.RESET} - Sending ping to {path}")
+            data = {
+                "id": account.account_info.get("uid"),
+                "browser_id": account.browser_ids[0],
+                "timestamp": int(time.time()),
+            }
 
-                # Send request with retry handling
-                response = await retry_request(url, data, account)
+            # Send request with retry handling
+            response = await retry_request(url, data, account)
 
-                if response is None:
-                    logger.error(f"{Fore.CYAN}{account.index:02d}{Fore.RESET} - {Fore.RED}No response from {path}{Fore.RESET}")
-                    continue
-            
-                ping_result, network_quality = await process_ping_response(response, url, account, data)
+            if response is None:
+                logger.error(f"{Fore.CYAN}{account.index:02d}{Fore.RESET} - {Fore.RED}No response from {path}{Fore.RESET}")
+                continue
+        
+            ping_result, network_quality = await process_ping_response(response, url, account, data)
 
-                logger.debug(separator_line)
+            logger.debug(separator_line)
 
-                identifier = await resolve_ip(account)
-                logger.info(
-                    f"{Fore.CYAN}{account.index:02d}{Fore.RESET} - {Fore.GREEN}Ping{Fore.RESET} {Fore.GREEN}{ping_result}{Fore.RESET}, "
-                    f"Token: {Fore.CYAN}{mask_token(account.token)}{Fore.RESET}, "
-                    f"IP Score: {Fore.CYAN}{network_quality}{Fore.RESET}, "
-                    f"{'Proxy' if account.proxy else 'IP Address'}: {Fore.CYAN}{identifier}{Fore.RESET}"
-                )
+            identifier = await resolve_ip(account)
+            logger.info(
+                f"{Fore.CYAN}{account.index:02d}{Fore.RESET} - {Fore.GREEN}Ping{Fore.RESET} {Fore.GREEN}{ping_result}{Fore.RESET}, "
+                f"Token: {Fore.CYAN}{mask_token(account.token)}{Fore.RESET}, "
+                f"IP Score: {Fore.CYAN}{network_quality}{Fore.RESET}, "
+                f"{'Proxy' if account.proxy else 'IP Address'}: {Fore.CYAN}{identifier}{Fore.RESET}"
+            )
 
-                if ping_result == "success":
-                    break
+            if ping_result == "success":
+                break
 
-            except KeyError as ke:
-                logger.error(f"{Fore.CYAN}{account.index:02d}{Fore.RESET} - {Fore.RED}KeyError during ping:{Fore.RESET} {ke}")
+        except KeyError as ke:
+            logger.error(f"{Fore.CYAN}{account.index:02d}{Fore.RESET} - {Fore.RED}KeyError during ping:{Fore.RESET} {ke}")
 
-            except Exception as e:
-                short_error = clean_error(e)
-                logger.error(f"{Fore.CYAN}{account.index:02d}{Fore.RESET} - {Fore.RED}Unexpected error:{Fore.RESET} {short_error}")
-                await asyncio.sleep(1)
-
-    except Exception as main_exception:
-        logger.error(f"{Fore.CYAN}{account.index:02d}{Fore.RESET} - {Fore.RED}Critical error in start ping:{Fore.RESET} {main_exception}")
+        except Exception as e:
+            short_error = str(e).split(" See")[0]
+            logger.error(f"{Fore.CYAN}{account.index:02d}{Fore.RESET} - {Fore.RED}Unexpected error while pinging:{Fore.RESET} {short_error}")
+            await asyncio.sleep(1)
 
 # Ping all accounts periodically
 async def ping_all_accounts(accounts):
@@ -139,10 +135,8 @@ async def ping_all_accounts(accounts):
     while time.time() - start_time < PING_DURATION:
         try:
             # Ping all accounts concurrently
-            results = await asyncio.gather(
-                *(start_ping(account) for account in accounts),
-                return_exceptions=True
-            )
+            tasks = [start_ping(account) for account in accounts]
+            results = await asyncio.gather(*tasks, return_exceptions=True)
 
             # Log errors for failed accounts
             for account, result in zip(accounts, results):
@@ -150,8 +144,8 @@ async def ping_all_accounts(accounts):
                     logger.error(f"{Fore.CYAN}{account.index:02d}{Fore.RESET} - {Fore.RED}Error pinging account:{Fore.RESET} {result}")
 
         except Exception as e:
-            short_error = clean_error(e)
-            logger.error(f"{Fore.CYAN}{account.index:02d}{Fore.RESET} - {Fore.RED}Unexpected error:{Fore.RESET} {short_error}")
+            short_error = str(e).split(" See")[0]
+            logger.error(f"{Fore.CYAN}{account.index:02d}{Fore.RESET} - {Fore.RED}Unexpected error in ping_all_accounts:{Fore.RESET} {short_error}")
 
         logger.info(f"{Fore.CYAN}00{Fore.RESET} - Sleeping for {PING_INTERVAL} seconds before the next round")
         await asyncio.sleep(PING_INTERVAL)
