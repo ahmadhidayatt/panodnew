@@ -63,7 +63,7 @@ async def get_ip_address(proxy=None):
         url = "https://api.ipify.org?format=json"
         
         async with aiohttp.ClientSession() as session:
-            async with session.get(url, proxy=proxy) as response:
+            async with session.get(url, proxy=proxy, ssl=False) as response:
                 
                 if response.status == 200:
                     result = await response.json()
