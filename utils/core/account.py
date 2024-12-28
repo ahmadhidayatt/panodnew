@@ -102,7 +102,6 @@ async def process():
 
             # Ping all accounts to keep their sessions active
             await ping_all_accounts(accounts)
-            await asyncio.sleep(60)
 
         except asyncio.CancelledError:
             print("Main loop interrupted. Cleaning up...")
