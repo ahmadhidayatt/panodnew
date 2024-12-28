@@ -1,6 +1,7 @@
 import asyncio
 import json
 import random
+import re
 import requests
 
 from curl_cffi import requests
@@ -24,20 +25,15 @@ async def build_headers(url, account, method="POST", data=None):
     endpoint_specific_headers = get_endpoint_headers(url)
     headers.update(endpoint_specific_headers)
 
-    # Validate and serialize payload
-    if method in ["POST", "PUT"] and data:
+    # Validate serializability of data
+    if method in ["POST", "PUT"] and data is not None:
         if not isinstance(data, dict):
-            logger.error(f"{Fore.CYAN}{account.index:02d}{Fore.RESET} - {Fore.RED}Invalid payload type: {type(data)}. Expected dict.{Fore.RESET}")
             raise ValueError("Payload must be a dictionary.")
         try:
-            json_data = json.dumps(data, ensure_ascii=False).encode('utf-8')
-        except ValueError as e:
-            short_error = clean_error(e)
-            logger.error(f"{Fore.CYAN}{account.index:02d}{Fore.RESET} - {Fore.RED}Failed to serialize payload:{Fore.RESET} {short_error}")
-            raise
+            json.dumps(data, ensure_ascii=False)
+        except (TypeError, ValueError) as e:
+            raise ValueError(f"Invalid payload data: {e}")
 
-    # DEBUG: Log headers
-    logger.debug(f"{Fore.CYAN}{account.index:02d}{Fore.RESET} - {Fore.GREEN}Headers built:{Fore.RESET} {headers}")
     return headers
 
 # Function to return endpoint-specific headers based on the API
@@ -49,26 +45,30 @@ def get_endpoint_headers(url):
     PING_LIST = DOMAIN_API["PING"]
     ACTIVATE_URL = DOMAIN_API["ACTIVATE"]
 
-    if url in EARN_MISSION_SET:
-        return {
-            "Accept-Encoding": "gzip, deflate, br, zstd",
-            "Host": "api.nodepay.ai"
-        }
+    # Necessary headers
+    necessary_headers = {
+        "Accept": "application/json, text/plain, */*",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Referer": "https://app.nodepay.ai/",
+        "Origin": "chrome-extension://lgmpfmgeabnnlemejacfljbmonaomfmm",
+        "Connection": "keep-alive",
+    }
 
-    elif url in PING_LIST or url == ACTIVATE_URL:
-        return {
-            "Accept": "*/*",
-            "Accept-Language": "en-US,en;q=0.9",
-            "Referer": "https://app.nodepay.ai/",
-            "Origin": "chrome-extension://lgmpfmgeabnnlemejacfljbmonaomfmm",
-            "priority": "u=1, i",
-            "Sec-Fetch-Dest": "empty",
-            "Sec-Fetch-Mode": "cors",
-            "Sec-Fetch-Site": "cors-site",
-            "Pragma": "no-cache",
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive"
-        }
+    # Optional headers
+    optional_headers = {
+        "Sec-CH-UA": '"Not/A)Brand";v="8", "Chromium";v="126", "Herond";v="126"',
+        "Sec-Ch-Ua-Mobile": "?0",
+        "Sec-Ch-Ua-Platform": '"Windows"',
+        "Sec-Fetch-Dest": "empty",
+        "Sec-Fetch-Mode": "cors",
+        "Sec-Fetch-Site": "cors-site",
+        "Pragma": "no-cache",
+        "Cache-Control": "no-cache",
+    }
+
+    # Check if the URL matches specific sets
+    if url in PING_LIST or url in EARN_MISSION_SET or url == ACTIVATE_URL:
+        return {**necessary_headers, **optional_headers}
 
     # Default minimal headers
     return {"Accept": "application/json"}
@@ -80,6 +80,7 @@ async def send_request(url, data, account, method="POST", timeout=120):
     """
     headers = await build_headers(url, account, method, data)
     proxies = {"http": account.proxy, "https": account.proxy} if account.proxy else None
+    response = None
 
     parsed_url = urlparse(url)
     path = parsed_url.path
@@ -93,23 +94,35 @@ async def send_request(url, data, account, method="POST", timeout=120):
         if method == "GET":
             response = requests.get(url, headers=headers, proxies=proxies, impersonate="safari15_5", timeout=timeout)
         else:
-            response = requests.post(url, json=data, headers=headers, impersonate="safari15_5", proxies=proxies, timeout=timeout, verify=False)
+            response = requests.post(url, json=data, headers=headers, impersonate="safari15_5", proxies=proxies, timeout=timeout)
+
+        if response is None:  # Additional safety check
+            raise ValueError("Received no response from the server.")
 
         response.raise_for_status()
+        return response.json()
 
-        try:
-            return response.json()
-        except ValueError as e:
-            logger.error(f"{Fore.CYAN}{account.index:02d}{Fore.RESET} - {Fore.RED}Failed to decode JSON response:{Fore.RESET} {response.text}")
-            raise
+    except json.JSONDecodeError:
+        logger.error(f"{Fore.CYAN}{account.index:02d}{Fore.RESET} - {Fore.RED}Failed to decode JSON response:{Fore.RESET} {response.text if response else 'No response'}")
+        raise
 
     except requests.exceptions.ProxyError:
         logger.error(f"{Fore.CYAN}{account.index:02d}{Fore.RESET} - {Fore.RED}Proxy connection failed. Unable to connect to proxy{Fore.RESET}")
         raise
 
+    except requests.exceptions.HTTPError as e:
+        if e.response.status_code == 429:
+            retry_after = int(e.response.headers.get("Retry-After", 1))
+            logger.warning(f"{Fore.CYAN}{account.index:02d}{Fore.RESET} - {Fore.YELLOW}Rate limited (429). Retrying after {retry_after} seconds...{Fore.RESET}")
+            await asyncio.sleep(retry_after)
+        else:
+            short_error = str(e).split(" See")[0]
+            logger.error(f"{Fore.CYAN}{account.index:02d}{Fore.RESET} - {Fore.RED}HTTP error occurred:{Fore.RESET} {short_error}")
+        raise
+
     except requests.exceptions.RequestException as e:
-        short_error = clean_error(e)
-        logger.error(f"{Fore.CYAN}{account.index:02d}{Fore.RESET} - {Fore.RED}Request error:{Fore.RESET} {Fore.CYAN}{path}:{Fore.RESET} {short_error}")
+        short_error = str(e).split(" See")[0]
+        logger.error(f"{Fore.CYAN}{account.index:02d}{Fore.RESET} - {Fore.RED}Request error:{Fore.RESET} {Fore.CYAN}{path}{Fore.RESET} {short_error}")
         raise
 
 # Function to send HTTP requests with retry logic using exponential backoff
@@ -123,37 +136,32 @@ async def retry_request(url, data, account, method="POST", max_retries=3):
 
     while retry_count < max_retries:
         try:
-            return await send_request(url, data, account, method)
+            response = await send_request(url, data, account, method)
+            return response # Return the response if successful
 
         except requests.exceptions.HTTPError as e:
-            short_error = clean_error(e)
-            status_code = e.response.status_code if e.response else "Unknown"
-            logger.error(f"{Fore.CYAN}{account.index:02d}{Fore.RESET} - {Fore.RED}HTTP Error {status_code}:{Fore.RESET} {short_error}")
-            if status_code == 403:
-                logger.error(f"{Fore.CYAN}{account.index:02d}{Fore.RESET} - {Fore.RED}Forbidden: Check permissions or proxy.{Fore.RESET}")
+            logger.error(f"{Fore.CYAN}{account.index:02d}{Fore.RESET} - {Fore.RED}HTTP Error: {e.response.status_code} - {Fore.RESET} {e}")
+
+            if hasattr(e.response, "status_code") and e.response.status_code == 403:
+                logger.error(f"{Fore.CYAN}{account.index:02d}{Fore.RESET} - {Fore.RED}403 Forbidden: Check permissions or proxy.{Fore.RESET}")
+                return None
+
+        except requests.exceptions.Timeout as e:
+            short_error = str(e).split(" See")[0]
+            logger.error(f"{Fore.CYAN}{account.index:02d}{Fore.RESET} - {Fore.RED}Timeout error occurred{Fore.RESET} {short_error}")
 
         except Exception as e:
-            short_error = clean_error(e)
-            logger.error(f"{Fore.CYAN}{account.index:02d}{Fore.RESET} - {Fore.RED}Retry {retry_count}:{Fore.RESET} {short_error}")
+            retry_count += 1
+            delay = min(await exponential_backoff(retry_count), 30)
+            logger.info(f"{Fore.CYAN}{account.index:02d}{Fore.RESET} - Retry attempt {retry_count + 1}: Retrying after {delay:.2f} seconds...")
 
-        await exponential_backoff(retry_count)
-        retry_count += 1
-
-    raise Exception(f"{Fore.RED}Max retries reached for{Fore.RESET} {Fore.CYAN}{path}{Fore.RESET}")
+    raise Exception(f"{Fore.RED}Max retries reached for {Fore.RESET}{Fore.CYAN}{path}{Fore.RESET}")
 
 # Function to implement exponential backoff delay during retries
 async def exponential_backoff(retry_count, base_delay=1):
     """
     Perform exponential backoff for retries.
     """
-    delay = base_delay * (2 ** retry_count) + random.uniform(0, 1)
-    logger.info(f"{Fore.CYAN}00{Fore.RESET} - Retrying after {delay:.2f} seconds...")
+    delay = min(base_delay * (2 ** retry_count) + random.uniform(0, 1), 30)
     await asyncio.sleep(delay)
-
-def clean_error(error):
-    """
-    Format error message to remove unnecessary details.
-    """
-    error_message = str(error)
-    short_error = error_message.split(" See")[0]
-    return short_error
+    return delay
