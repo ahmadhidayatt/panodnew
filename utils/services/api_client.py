@@ -1,7 +1,6 @@
 import asyncio
 import json
 import random
-import re
 import requests
 
 from curl_cffi import requests
